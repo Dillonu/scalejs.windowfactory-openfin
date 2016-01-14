@@ -4,6 +4,8 @@ define([
 	"use strict";
 
 	function Vector(left, top) {
+		if (!new.target && !(this instanceof Vector)) return new Vector(left, top);
+		
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
 	        //new Vector(obj)
@@ -66,6 +68,8 @@ define([
 
 
 	function BoundingBox(left, top, right, bottom) {
+		if (!new.target && !(this instanceof BoundingBox)) return new BoundingBox(left, top, right, bottom);
+		
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
 	        if (obj.getBoundingBox != null) obj = obj.getBoundingBox();
@@ -139,7 +143,6 @@ define([
 	    }
 	    return this;
 	};
-
 	BoundingBox.prototype.resizeTo = function (width, height) {
 	    var newSize = new Vector(width, height);
 	    if (newSize.left != null) this.right = this.left + newSize.left;
@@ -224,6 +227,8 @@ define([
 	};*/
 
 	function CollisionMesh(boxes) {
+		if (!new.target && !(this instanceof CollisionMesh)) return new CollisionMesh(boxes);
+		
 	    if (boxes == null) throw "CollisionMesh constructor requires argument 'boxes'";
 	    if (boxes.constructor !== Array) boxes = [boxes];
 	    this.boxes = [];
@@ -237,7 +242,6 @@ define([
 	        }
 	    }
 	}
-
 	CollisionMesh.prototype.clone = function () {
 	    var boxes = [];
 	    for (var index = 0; index < this.boxes; index += 1) {
@@ -245,7 +249,6 @@ define([
 	    }
 	    return new CollisionMesh(boxes);
 	};
-    
 	CollisionMesh.prototype.getWidth = function () {
 	    if (this.boxes.length === 0) return 0;
 
@@ -351,16 +354,6 @@ define([
 	    }
 	    return false;
 	};
-	CollisionMesh.prototype.getColliding = function (other) {
-	    if (other == null) throw "getColliding requires argument 'other'";
-	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
-	    if (other.constructor !== CollisionMesh) throw "getColliding requires argument 'other' to resolve to type CollisionMesh";
-
-	    for (var index = 0; index < this.boxes.length; index += 1) {
-	        var collided = this.boxes[index].getColliding(other.boxes);
-	        if (collided) return collided;
-	    }
-	};
 	CollisionMesh.prototype.someColliding = function (others) {
 	    if (others == null) throw "someColliding requires argument 'others'";
 	    if (others.constructor !== Array) throw "someColliding requires argument 'others' to resolve to type Array";
@@ -371,6 +364,16 @@ define([
 	        }
 	    }
 	    return false;
+	};
+	CollisionMesh.prototype.getColliding = function (others) {
+	    if (other == null) throw "getColliding requires argument 'other'";
+	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
+	    if (other.constructor !== CollisionMesh) throw "getColliding requires argument 'other' to resolve to type CollisionMesh";
+
+	    for (var index = 0; index < this.boxes.length; index += 1) {
+	        var collided = this.boxes[index].getColliding(other.boxes);
+	        if (collided) return collided;
+	    }
 	};
 	/*CollisionMesh.prototype.getXEdgeDistance = function (other) {
 	    if (other == null) throw "isTouching requires argument 'other'";

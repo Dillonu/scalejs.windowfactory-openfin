@@ -20,6 +20,8 @@ define([
         currentMouseMonitor;
 
     function Monitor(monitorObj) {
+		if (!new.target && !(this instanceof Monitor)) return new Monitor(monitorObj);
+		
         this.deviceId = monitorObj.deviceId;
         this.name = monitorObj.name;
         this.deviceScaleFactor = monitorObj.deviceScaleFactor;

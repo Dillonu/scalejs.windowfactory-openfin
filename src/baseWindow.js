@@ -431,9 +431,23 @@ define([
         delete this._eventListeners["ready"];
     }
 
-    function BaseWindow(config) {
+    function BaseWindow(config, _) {
+		if (!new.target && !(this instanceof BaseWindow)) return new BaseWindow(config);
+		
         if (config == null) config = {}; // If no arguments are passed, assume we are creating a default blank window
         var isArgConfig = (config.app_uuid == null);
+		
+		// Handle OpenFin properties:
+		if (isArgConfig && config.name == null) {
+			if (config.showTaskbarIcon === true) {
+				throw "new BaseWindow(config) requires 'config.name' to be set when 'config.showTaskbarIcon' is 'true'!";
+			} else {
+				// No window name given, and showTaskbarIcon is not set!
+				// Therefore default to not showing taskbar and give a random unique name:
+				config.showTaskbarIcon = false;
+				config.name = windowManager.getUniqueWindowName(); // If no name passed, create a unique one.
+			}
+		}
 
         // Handle base hidden properties:
         this._config = {};

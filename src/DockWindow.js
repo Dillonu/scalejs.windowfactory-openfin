@@ -14,6 +14,8 @@ define([
         CollisionMesh = geometry.CollisionMesh;
 
     function DockWindow(config) {
+		if (!new.target && !(this instanceof DockWindow)) return new DockWindow(config);
+		
         BaseWindow.apply(this, arguments);
         this._dockedGroup = [this];
 		this._isDocked = false;
