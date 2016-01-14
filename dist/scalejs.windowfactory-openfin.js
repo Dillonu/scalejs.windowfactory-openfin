@@ -5,6 +5,8 @@ define('geometry',[
 	"use strict";
 
 	function Vector(left, top) {
+		if (!new.target && !(this instanceof Vector)) return new Vector(left, top);
+		
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
 	        //new Vector(obj)
@@ -67,6 +69,8 @@ define('geometry',[
 
 
 	function BoundingBox(left, top, right, bottom) {
+		if (!new.target && !(this instanceof BoundingBox)) return new BoundingBox(left, top, right, bottom);
+		
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
 	        if (obj.getBoundingBox != null) obj = obj.getBoundingBox();
@@ -140,7 +144,6 @@ define('geometry',[
 	    }
 	    return this;
 	};
-
 	BoundingBox.prototype.resizeTo = function (width, height) {
 	    var newSize = new Vector(width, height);
 	    if (newSize.left != null) this.right = this.left + newSize.left;
@@ -225,6 +228,8 @@ define('geometry',[
 	};*/
 
 	function CollisionMesh(boxes) {
+		if (!new.target && !(this instanceof CollisionMesh)) return new CollisionMesh(boxes);
+		
 	    if (boxes == null) throw "CollisionMesh constructor requires argument 'boxes'";
 	    if (boxes.constructor !== Array) boxes = [boxes];
 	    this.boxes = [];
@@ -238,7 +243,6 @@ define('geometry',[
 	        }
 	    }
 	}
-
 	CollisionMesh.prototype.clone = function () {
 	    var boxes = [];
 	    for (var index = 0; index < this.boxes; index += 1) {
@@ -246,7 +250,6 @@ define('geometry',[
 	    }
 	    return new CollisionMesh(boxes);
 	};
-    
 	CollisionMesh.prototype.getWidth = function () {
 	    if (this.boxes.length === 0) return 0;
 
@@ -352,16 +355,6 @@ define('geometry',[
 	    }
 	    return false;
 	};
-	CollisionMesh.prototype.getColliding = function (other) {
-	    if (other == null) throw "getColliding requires argument 'other'";
-	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
-	    if (other.constructor !== CollisionMesh) throw "getColliding requires argument 'other' to resolve to type CollisionMesh";
-
-	    for (var index = 0; index < this.boxes.length; index += 1) {
-	        var collided = this.boxes[index].getColliding(other.boxes);
-	        if (collided) return collided;
-	    }
-	};
 	CollisionMesh.prototype.someColliding = function (others) {
 	    if (others == null) throw "someColliding requires argument 'others'";
 	    if (others.constructor !== Array) throw "someColliding requires argument 'others' to resolve to type Array";
@@ -372,6 +365,16 @@ define('geometry',[
 	        }
 	    }
 	    return false;
+	};
+	CollisionMesh.prototype.getColliding = function (others) {
+	    if (other == null) throw "getColliding requires argument 'other'";
+	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
+	    if (other.constructor !== CollisionMesh) throw "getColliding requires argument 'other' to resolve to type CollisionMesh";
+
+	    for (var index = 0; index < this.boxes.length; index += 1) {
+	        var collided = this.boxes[index].getColliding(other.boxes);
+	        if (collided) return collided;
+	    }
 	};
 	/*CollisionMesh.prototype.getXEdgeDistance = function (other) {
 	    if (other == null) throw "isTouching requires argument 'other'";
@@ -508,6 +511,8 @@ define('monitorManager',[
         currentMouseMonitor;
 
     function Monitor(monitorObj) {
+		if (!new.target && !(this instanceof Monitor)) return new Monitor(monitorObj);
+		
         this.deviceId = monitorObj.deviceId;
         this.name = monitorObj.name;
         this.deviceScaleFactor = monitorObj.deviceScaleFactor;
@@ -1241,9 +1246,23 @@ define('BaseWindow',[
         delete this._eventListeners["ready"];
     }
 
-    function BaseWindow(config) {
+    function BaseWindow(config, _) {
+		if (!new.target && !(this instanceof BaseWindow)) return new BaseWindow(config);
+		
         if (config == null) config = {}; // If no arguments are passed, assume we are creating a default blank window
         var isArgConfig = (config.app_uuid == null);
+		
+		// Handle OpenFin properties:
+		if (isArgConfig && config.name == null) {
+			if (config.showTaskbarIcon === true) {
+				throw "new BaseWindow(config) requires 'config.name' to be set when 'config.showTaskbarIcon' is 'true'!";
+			} else {
+				// No window name given, and showTaskbarIcon is not set!
+				// Therefore default to not showing taskbar and give a random unique name:
+				config.showTaskbarIcon = false;
+				config.name = windowManager.getUniqueWindowName(); // If no name passed, create a unique one.
+			}
+		}
 
         // Handle base hidden properties:
         this._config = {};
@@ -1721,6 +1740,8 @@ define('DockWindow',[
         CollisionMesh = geometry.CollisionMesh;
 
     function DockWindow(config) {
+		if (!new.target && !(this instanceof DockWindow)) return new DockWindow(config);
+		
         BaseWindow.apply(this, arguments);
         this._dockedGroup = [this];
 		this._isDocked = false;
