@@ -1,4 +1,6 @@
 # scalejs.windowfactory-openfin
+An extension for scalejs designed to manage OpenFin windows.  
+This extension is designed to make OpenFin window management easier.
 
 ## Installing via Bower Install
 `bower install https://github.com/EikosPartners/scalejs.windowfactory-openfin.git`
