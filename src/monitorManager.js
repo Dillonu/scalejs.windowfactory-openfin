@@ -10,7 +10,6 @@ define([
     var Vector = geometry.Vector,
         Position = geometry.Vector,
         BoundingBox = geometry.BoundingBox,
-        CollisionMesh = geometry.CollisionMesh,
         readyListeners = [],
         _isReady = false,
         currentMonitorInfo,

@@ -1,13 +1,9 @@
 define([
-    './openFinManager',
     './geometry',
-    './eventSystem',
     './monitorManager',
     './windowManager'
 ], function (
-    openFinManager,
     geometry,
-    eventSystem,
     monitorManager,
     windowManager
 ) {
@@ -203,6 +199,8 @@ define([
             for (var index = 0; index < otherWindows.length; index += 1) {
                 if (meshWindows.indexOf(otherWindows[index]) < 0 && otherWindows[index].isVisible()) snapWindows.push(otherWindows[index]);
             }
+			
+			// TODO: Add monitor snapping here, before window snapping.
 
             for (var snapIndex = 0; snapIndex < snapWindows.length; snapIndex += 1) {
                 var snapWindow = snapWindows[snapIndex],

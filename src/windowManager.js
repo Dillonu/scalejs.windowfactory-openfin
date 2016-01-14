@@ -1,15 +1,9 @@
 define([
-    './geometry',
-    './eventSystem'
 ], function (
-    geometry,
-    eventSystem
 ) {
     "use strict";
 
-    var Vector = geometry.Vector,
-        BoundingBox = geometry.BoundingBox,
-        mainWindow,
+    var mainWindow,
         windows = [],
         applicationWindows = [],
         eventListeners = {},
@@ -125,7 +119,7 @@ define([
           lut[d2&0x3f|0x80]+lut[d2>>8&0xff]+'-'+lut[d2>>16&0xff]+lut[d2>>24&0xff]+
           lut[d3&0xff]+lut[d3>>8&0xff]+lut[d3>>16&0xff]+lut[d3>>24&0xff];
     }
-    function getNextWindowId() {
+    function getUniqueWindowName() {
         var nameExists = true,
             name = "window" + genUID_e7();
 
@@ -152,6 +146,6 @@ define([
 	    getApplicationWindows: getApplicationWindows,
 	    getWindowByElement: getWindowByElement,
 	    getWindowByName: getWindowByName,
-        getNextWindowId: getNextWindowId
+        getUniqueWindowName: getUniqueWindowName
 	};
 });

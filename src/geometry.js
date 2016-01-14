@@ -28,6 +28,9 @@ define([
 	    // This simplifies code, and prevents having to do a ton of checks.
 	    return new BoundingBox(this.left, this.top, this.left, this.top);
 	}
+	Vector.prototype.getCollisionMesh = function () {
+	    return new CollisionMesh(this.getBoundingBox());
+	};
 	Vector.prototype.set = function (other) {
 	    if (other == null) throw "set requires argument 'other'";
 	    other = other.getVector();

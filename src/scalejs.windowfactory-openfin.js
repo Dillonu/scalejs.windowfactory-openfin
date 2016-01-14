@@ -1,17 +1,17 @@
 define([
     'scalejs!core',
     './geometry',
+    './openFinManager',
     './monitorManager',
     './windowManager',
-    './openFinManager',
     './BaseWindow',
     './DockWindow'
 ], function (
     core,
     geometry,
+    openFinManager,
     monitorManager,
     windowManager,
-    openFinManager,
     BaseWindow,
     DockWindow
 ) {

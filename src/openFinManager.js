@@ -1,9 +1,5 @@
 define([
-    './geometry',
-    './eventSystem'
 ], function (
-    geometry,
-    eventSystem
 ) {
     "use strict";
 

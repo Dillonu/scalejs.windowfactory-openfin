@@ -1,11 +1,9 @@
 define([
     './geometry',
-    './eventSystem',
     './monitorManager',
     './BaseWindow'
 ], function (
     geometry,
-    eventSystem,
     monitorManager,
     BaseWindow
 ) {
@@ -13,7 +11,6 @@ define([
 
     var Vector = geometry.Vector,
         Position = geometry.Vector,
-        BoundingBox = geometry.BoundingBox,
         CollisionMesh = geometry.CollisionMesh;
 
     function DockWindow(config) {
