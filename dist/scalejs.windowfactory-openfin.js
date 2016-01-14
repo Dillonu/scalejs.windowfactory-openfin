@@ -29,6 +29,9 @@ define('geometry',[
 	    // This simplifies code, and prevents having to do a ton of checks.
 	    return new BoundingBox(this.left, this.top, this.left, this.top);
 	}
+	Vector.prototype.getCollisionMesh = function () {
+	    return new CollisionMesh(this.getBoundingBox());
+	};
 	Vector.prototype.set = function (other) {
 	    if (other == null) throw "set requires argument 'other'";
 	    other = other.getVector();
@@ -391,6 +394,49 @@ define('geometry',[
 	};
 });
 
+define('openFinManager',[
+], function (
+) {
+    "use strict";
+
+    var _isReady = false,
+        readyListeners = [],
+        openFinManager = {
+            version: "0.0.0.0",
+            majorVersion: 0,
+            isReady: function () {
+				return _isReady;
+			},
+			onReady: function (callback) {
+				// Check if already is ready:
+				if (_isReady) return callback();
+
+				// Check if eventListener is a function:
+				if (callback == null || callback.constructor !== Function) throw "onReady requires argument 'callback' of type Function";
+				
+				// Check if eventListener is already added:
+				if (readyListeners.indexOf(callback) >= 0) return;
+
+				// Add event listener:
+				readyListeners.push(callback);
+			}
+        };
+    
+	fin.desktop.main(function () {
+	    fin.desktop.System.getVersion(function (version) {
+	        openFinManager.version = version;
+	        openFinManager.majorVersion = +version.split(".")[0];
+	        _isReady = true;
+			for (var index = 0; index < readyListeners.length; index += 1) {
+				readyListeners[index]();
+			}
+			readyListeners = [];
+	    });
+	});
+
+	return openFinManager;
+});
+
 define('eventSystem',[
 ], function (
 ) {
@@ -452,7 +498,6 @@ define('monitorManager',[
     var Vector = geometry.Vector,
         Position = geometry.Vector,
         BoundingBox = geometry.BoundingBox,
-        CollisionMesh = geometry.CollisionMesh,
         readyListeners = [],
         _isReady = false,
         currentMonitorInfo,
@@ -612,17 +657,11 @@ define('monitorManager',[
 });
 
 define('windowManager',[
-    './geometry',
-    './eventSystem'
 ], function (
-    geometry,
-    eventSystem
 ) {
     "use strict";
 
-    var Vector = geometry.Vector,
-        BoundingBox = geometry.BoundingBox,
-        mainWindow,
+    var mainWindow,
         windows = [],
         applicationWindows = [],
         eventListeners = {},
@@ -738,7 +777,7 @@ define('windowManager',[
           lut[d2&0x3f|0x80]+lut[d2>>8&0xff]+'-'+lut[d2>>16&0xff]+lut[d2>>24&0xff]+
           lut[d3&0xff]+lut[d3>>8&0xff]+lut[d3>>16&0xff]+lut[d3>>24&0xff];
     }
-    function getNextWindowId() {
+    function getUniqueWindowName() {
         var nameExists = true,
             name = "window" + genUID_e7();
 
@@ -765,67 +804,16 @@ define('windowManager',[
 	    getApplicationWindows: getApplicationWindows,
 	    getWindowByElement: getWindowByElement,
 	    getWindowByName: getWindowByName,
-        getNextWindowId: getNextWindowId
+        getUniqueWindowName: getUniqueWindowName
 	};
 });
 
-define('openFinManager',[
-    './geometry',
-    './eventSystem'
-], function (
-    geometry,
-    eventSystem
-) {
-    "use strict";
-
-    var _isReady = false,
-        readyListeners = [],
-        openFinManager = {
-            version: "0.0.0.0",
-            majorVersion: 0,
-            isReady: function () {
-				return _isReady;
-			},
-			onReady: function (callback) {
-				// Check if already is ready:
-				if (_isReady) return callback();
-
-				// Check if eventListener is a function:
-				if (callback == null || callback.constructor !== Function) throw "onReady requires argument 'callback' of type Function";
-				
-				// Check if eventListener is already added:
-				if (readyListeners.indexOf(callback) >= 0) return;
-
-				// Add event listener:
-				readyListeners.push(callback);
-			}
-        };
-    
-	fin.desktop.main(function () {
-	    fin.desktop.System.getVersion(function (version) {
-	        openFinManager.version = version;
-	        openFinManager.majorVersion = +version.split(".")[0];
-	        _isReady = true;
-			for (var index = 0; index < readyListeners.length; index += 1) {
-				readyListeners[index]();
-			}
-			readyListeners = [];
-	    });
-	});
-
-	return openFinManager;
-});
-
 define('BaseWindow',[
-    './openFinManager',
     './geometry',
-    './eventSystem',
     './monitorManager',
     './windowManager'
 ], function (
-    openFinManager,
     geometry,
-    eventSystem,
     monitorManager,
     windowManager
 ) {
@@ -1021,6 +1009,8 @@ define('BaseWindow',[
             for (var index = 0; index < otherWindows.length; index += 1) {
                 if (meshWindows.indexOf(otherWindows[index]) < 0 && otherWindows[index].isVisible()) snapWindows.push(otherWindows[index]);
             }
+			
+			// TODO: Add monitor snapping here, before window snapping.
 
             for (var snapIndex = 0; snapIndex < snapWindows.length; snapIndex += 1) {
                 var snapWindow = snapWindows[snapIndex],
@@ -1717,12 +1707,10 @@ define('BaseWindow',[
 
 define('DockWindow',[
     './geometry',
-    './eventSystem',
     './monitorManager',
     './BaseWindow'
 ], function (
     geometry,
-    eventSystem,
     monitorManager,
     BaseWindow
 ) {
@@ -1730,7 +1718,6 @@ define('DockWindow',[
 
     var Vector = geometry.Vector,
         Position = geometry.Vector,
-        BoundingBox = geometry.BoundingBox,
         CollisionMesh = geometry.CollisionMesh;
 
     function DockWindow(config) {
@@ -1888,17 +1875,17 @@ define('DockWindow',[
 define('scalejs.windowfactory-openfin',[
     'scalejs!core',
     './geometry',
+    './openFinManager',
     './monitorManager',
     './windowManager',
-    './openFinManager',
     './BaseWindow',
     './DockWindow'
 ], function (
     core,
     geometry,
+    openFinManager,
     monitorManager,
     windowManager,
-    openFinManager,
     BaseWindow,
     DockWindow
 ) {
