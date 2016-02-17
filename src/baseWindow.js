@@ -20,9 +20,14 @@ define([
     function setupDOM() {
         // Handle config property:
         var thisWindow = this;
+		thisWindow.setTitle(); // set using default this._title
+		this._window.getState(function (state) {
+			thisWindow._isMinimized = (state === "minimized");
+			thisWindow._isMaximized = (state === "maximized");
+		});
         this._window.getOptions(function (options) {
             thisWindow._config = options;
-            if (thisWindow._config.name) thisWindow.setTitle(thisWindow._config.name);
+			thisWindow.setTitle(); // set using default this._config.name
         });
 
         // Remove from parent on close:
@@ -65,7 +70,14 @@ define([
         //On max/min states:
         this._window.addEventListener("minimized", function (event) {
             for (var index = 0; index < thisWindow._children.length; index += 1) {
-                if (thisWindow._children[index].isVisible()) thisWindow._children[index].minimize();
+                var child = thisWindow._children[index];
+                if (child.isVisible()) {
+                    if (!child._config.showTaskbarIcon && child._showOnParentShow) {
+                        child.hide();
+                    } else {
+                        child.minimize();
+                    }
+                }
             }
             thisWindow._isMinimized = true;
             thisWindow._isMaximized = false;
@@ -74,7 +86,8 @@ define([
         });
         this._window.addEventListener("restored", function (event) {
             for (var index = 0; index < thisWindow._children.length; index += 1) {
-                if (thisWindow._children[index]._showOnParentShow || thisWindow._children[index].isVisible()) thisWindow._children[index].restore();
+                if (thisWindow._children[index]._showOnParentShow) thisWindow._children[index].show();
+                if (!thisWindow._children[index].isVisible()) thisWindow._children[index].restore();
             }
             thisWindow._isMinimized = false;
             thisWindow._isMaximized = false;
@@ -197,7 +210,7 @@ define([
 
             // Filter otherWindows to only windows which we can snap to:
             for (var index = 0; index < otherWindows.length; index += 1) {
-                if (meshWindows.indexOf(otherWindows[index]) < 0 && otherWindows[index].isVisible()) snapWindows.push(otherWindows[index]);
+                if (meshWindows.indexOf(otherWindows[index]) < 0 && otherWindows[index].isVisible() && otherWindows[index].isReady()) snapWindows.push(otherWindows[index]);
             }
 			
 			// TODO: Add monitor snapping here, before window snapping.
@@ -432,21 +445,28 @@ define([
     }
 
     function BaseWindow(config, _) {
-		if (!new.target && !(this instanceof BaseWindow)) return new BaseWindow(config);
+		if (!(this instanceof BaseWindow)) return new BaseWindow(config);
 		
         if (config == null) config = {}; // If no arguments are passed, assume we are creating a default blank window
         var isArgConfig = (config.app_uuid == null);
 		
 		// Handle OpenFin properties:
-		if (isArgConfig && config.name == null) {
-			if (config.showTaskbarIcon === true) {
-				throw "new BaseWindow(config) requires 'config.name' to be set when 'config.showTaskbarIcon' is 'true'!";
+		if (isArgConfig) {
+			if (config.name == null) {
+				if (config.showTaskbarIcon === true) {
+					throw "new BaseWindow(config) requires 'config.name' to be set when 'config.showTaskbarIcon' is 'true'!";
+				} else {
+					// No window name given, and showTaskbarIcon is not set!
+					// Therefore default to not showing taskbar and give a random unique name:
+					config.showTaskbarIcon = false;
+					config.name = windowManager.getUniqueWindowName(); // If no name passed, create a unique one.
+					this._title = config.name;
+				}
 			} else {
-				// No window name given, and showTaskbarIcon is not set!
-				// Therefore default to not showing taskbar and give a random unique name:
-				config.showTaskbarIcon = false;
-				config.name = windowManager.getUniqueWindowName(); // If no name passed, create a unique one.
+				this._title = config.name;
+				config.name = windowManager.getUniqueWindowName();
 			}
+			config.saveWindowState = config.saveWindowState || false;
 		}
 
         // Handle base hidden properties:
@@ -455,6 +475,8 @@ define([
         this._isReady = false;
         this._isClosed = false;
         this._isVisible = (isArgConfig ? config.autoShow : undefined);
+		this._isMinimized = (isArgConfig && config.state != null ? (config.state === "minimized") : false);
+		this._isMaximized = (isArgConfig && config.state != null ? (config.state === "maximized") : false);
         this._parent = (isArgConfig ? config._parent : undefined); // TODO: Validate object type
         delete config._parent;
         this._closeOnLostFocus = (isArgConfig ? config._closeOnLostFocus : undefined); // TODO: Validate object type
@@ -483,8 +505,13 @@ define([
             this._window.isShowing(function (showing) {
                 thisWindow._isVisible = showing;
             });
+			this._window.getState(function (state) {
+				thisWindow._isMinimized = (state === "minimized");
+				thisWindow._isMaximized = (state === "maximized");
+			});
             this._window.getOptions(function (options) {
                 thisWindow._config = options;
+				thisWindow._title = options.name;
                 thisWindow.onDOMReady(setupDOM);
             });
         } else {
@@ -729,7 +756,7 @@ define([
     };
 
     BaseWindow.prototype.getTitle = function () {
-        var title = this._config.name || "";
+        var title = this._title || this._config.name || "";
 
         // If window not setup, or window is closed:
         if (!this.isReady()) return title;
@@ -749,7 +776,10 @@ define([
             title.id = "ui-title";
             document.head.appendChild(title); // Needed for window renaming
         }
-        title.innerHTML = newName || this._config.name || "";
+		var oldname = this._title || this._config.name || "";
+		this._title = newName || this._title || this._config.name || "";
+        title.innerHTML = this._title;
+		this.triggerEvent("rename", this._title, oldname);
     };
 
     BaseWindow.prototype.getZoom = function () {
@@ -904,6 +934,10 @@ define([
 
     BaseWindow.prototype.addChild = function (window) {
         window.setParent(this);
+    };
+
+    BaseWindow.prototype.animate = function () {
+        this._window.animate.apply(this._window, arguments);
     };
 
     return BaseWindow;

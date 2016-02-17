@@ -4,7 +4,7 @@ define([
 	"use strict";
 
 	function Vector(left, top) {
-		if (!new.target && !(this instanceof Vector)) return new Vector(left, top);
+		if (!(this instanceof Vector)) return new Vector(left, top);
 		
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
@@ -68,7 +68,7 @@ define([
 
 
 	function BoundingBox(left, top, right, bottom) {
-		if (!new.target && !(this instanceof BoundingBox)) return new BoundingBox(left, top, right, bottom);
+		if (!(this instanceof BoundingBox)) return new BoundingBox(left, top, right, bottom);
 		
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
@@ -227,7 +227,7 @@ define([
 	};*/
 
 	function CollisionMesh(boxes) {
-		if (!new.target && !(this instanceof CollisionMesh)) return new CollisionMesh(boxes);
+		if (!(this instanceof CollisionMesh)) return new CollisionMesh(boxes);
 		
 	    if (boxes == null) throw "CollisionMesh constructor requires argument 'boxes'";
 	    if (boxes.constructor !== Array) boxes = [boxes];
@@ -365,7 +365,7 @@ define([
 	    }
 	    return false;
 	};
-	CollisionMesh.prototype.getColliding = function (others) {
+	CollisionMesh.prototype.getColliding = function (other) {
 	    if (other == null) throw "getColliding requires argument 'other'";
 	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
 	    if (other.constructor !== CollisionMesh) throw "getColliding requires argument 'other' to resolve to type CollisionMesh";

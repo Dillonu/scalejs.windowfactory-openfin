@@ -133,6 +133,16 @@ define([
 
         return name;
     }
+	
+	function getVisibleWindows() {
+		var visibleWindows = [];
+		
+        for (var index = 0; index < windows.length; index += 1) {
+            if (windows[index].isVisible()) visibleWindows.push(windows[index]);
+        }
+		
+		return visibleWindows;
+	}
 
     return {
         addEventListener: addEventListener,
@@ -146,6 +156,7 @@ define([
 	    getApplicationWindows: getApplicationWindows,
 	    getWindowByElement: getWindowByElement,
 	    getWindowByName: getWindowByName,
-        getUniqueWindowName: getUniqueWindowName
+        getUniqueWindowName: getUniqueWindowName,
+		getVisibleWindows: getVisibleWindows
 	};
 });

@@ -1,3 +1,4 @@
+/*global define*/
 define([
     'scalejs!core',
     './geometry',
@@ -81,20 +82,26 @@ define([
 		});
     });
 	
+	var windowFactory = {
+		Vector: geometry.Vector,
+		Position: geometry.Vector,
+		Size: geometry.Vector,
+		BoundingBox: geometry.BoundingBox,
+		CollisionMesh: geometry.CollisionMesh,
+		BaseWindow: BaseWindow,
+		DockWindow: DockWindow,
+		monitorManager: monitorManager,
+		windowManager: windowManager,
+		openFinManager: openFinManager,
+		getMainWindow: getMainWindow,
+		onReady: onReady,
+		isReady: isGlobalReady
+	};
+	
     core.registerExtension({
-        windowfactory: {
-			Vector: geometry.Vector,
-			Position: geometry.Vector,
-			Size: geometry.Vector,
-			BaseWindow: BaseWindow,
-			DockWindow: DockWindow,
-			monitorManager: monitorManager,
-			windowManager: windowManager,
-			openFinManager: openFinManager,
-			getMainWindow: getMainWindow,
-			onReady: onReady,
-			isReady: isGlobalReady
-		}
+        windowfactory: windowFactory
     });
+	
+	return windowFactory;
 });
 

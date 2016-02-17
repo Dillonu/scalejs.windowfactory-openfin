@@ -14,7 +14,7 @@ define([
         CollisionMesh = geometry.CollisionMesh;
 
     function DockWindow(config) {
-		if (!new.target && !(this instanceof DockWindow)) return new DockWindow(config);
+		if (!(this instanceof DockWindow)) return new DockWindow(config);
 		
         BaseWindow.apply(this, arguments);
         this._dockedGroup = [this];
@@ -69,6 +69,9 @@ define([
         if (this._dockedGroup.indexOf(other) >= 0) return; // Don't have to do anything if already docked!
 
         var otherGroup = other._dockedGroup;
+		
+		// Verify it is touching one window:
+		if (!other.getCollisionMesh().isTouching(this.getCollisionMesh())) return; // Don't dock if none are touching
 
         for (var index = 0; index < otherGroup.length; index += 1) {
             if (this._dockedGroup.indexOf(otherGroup[index]) < 0) {
@@ -80,6 +83,7 @@ define([
         for (var index = 0; index < this._dockedGroup.length; index += 1) {
             //this._dockedGroup[index].isDocked(true);
 			this._dockedGroup[index]._isDocked = true;
+            this._dockedGroup[index].triggerEvent("dock");
         }
     };
 
@@ -94,6 +98,7 @@ define([
             oldGroup[i]._dockedGroup = [oldGroup[i]];
             //oldGroup[i].isDocked(false);
 			oldGroup[i]._isDocked = false;
+            oldGroup[i].triggerEvent("undock");
         }
 
         // Remove this window from oldGroup:
