@@ -900,6 +900,10 @@ define([
         this._window.focus.apply(this._window, arguments);
     };
 
+    BaseWindow.prototype.animate = function () {
+        this._window.animate.apply(this._window, arguments);
+    };
+
     BaseWindow.prototype.updateOptions = function () {
         // Handle config property:
         // TODO: Update this._config
@@ -934,10 +938,6 @@ define([
 
     BaseWindow.prototype.addChild = function (window) {
         window.setParent(this);
-    };
-
-    BaseWindow.prototype.animate = function () {
-        this._window.animate.apply(this._window, arguments);
     };
 
     return BaseWindow;
