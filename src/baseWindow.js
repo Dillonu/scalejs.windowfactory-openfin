@@ -452,6 +452,7 @@ define([
 		
 		// Handle OpenFin properties:
 		if (isArgConfig) {
+			config.showTaskbarIcon = (config.showTaskbarIcon != null ? config.showTaskbarIcon : true);
 			if (config.name == null) {
 				if (config.showTaskbarIcon === true) {
 					throw "new BaseWindow(config) requires 'config.name' to be set when 'config.showTaskbarIcon' is 'true'!";
@@ -470,6 +471,10 @@ define([
 		}
 
         // Handle base hidden properties:
+		this.description = (isArgConfig ? config.description : "");
+		delete config.description;
+		this.debug = (isArgConfig ? config.debug : "");
+		delete config.debug;
         this._config = {};
         this._eventListeners = {};
         this._isReady = false;
@@ -754,6 +759,13 @@ define([
             callback.call(this);
         }
     };
+	
+	BaseWindow.prototype.getGUID = function () {
+        if (!this.isReady()) throw "getGUID/getUUID can't be called on an unready window";
+        if (this.isClosed()) throw "getGUID/getUUID can't be called on a closed window";
+		return this._config.name;
+	};
+	BaseWindow.prototype.getUUID = BaseWindow.prototype.getGUID;
 
     BaseWindow.prototype.getTitle = function () {
         var title = this._title || this._config.name || "";
@@ -847,7 +859,15 @@ define([
     };
 
     BaseWindow.prototype.minimize = function () {
-        this._window.minimize.apply(this._window, arguments);
+        if (!this.isReady()) throw "minimize can't be called on an unready window";
+		
+		if (this._config.showTaskbarIcon) {
+			this._window.minimize.apply(this._window, arguments);
+		} else if (this._config.hideOnClose) {
+			this.hide.apply(this, arguments);
+		} else {
+			this.close.apply(this, arguments);
+		}
     };
 
     BaseWindow.prototype.maximize = function () {
