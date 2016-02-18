@@ -924,10 +924,19 @@ define([
         this._window.animate.apply(this._window, arguments);
     };
 
-    BaseWindow.prototype.updateOptions = function () {
+    BaseWindow.prototype.updateOptions = function (options, callback, errorCallback) {
         // Handle config property:
-        // TODO: Update this._config
-        this._window.updateOptions.apply(this._window, arguments);
+		var thisWindow = this;
+		
+		function onSuccess() {
+			// TODO: Validate config? Maybe pull from getOptions? Is it needed since openfin should error on bad fields?
+			for (var field in options) {
+				thisWindow._config[field] = options[field];
+			}
+			callback.apply(this._window, arguments);
+		}
+		
+        this._window.updateOptions(options, onSuccess, errorCallback);
     };
 
     BaseWindow.prototype.setParent = function (parent) {
