@@ -650,7 +650,7 @@ define([
     };
 
     BaseWindow.prototype.addEventListener = function (eventName, eventListener) {
-        if (this._isClosed) throw "onDOMReady can't be called on a closed window"; // If window is closed, ignore any new callbacks
+        if (this.isClosed()) throw "addEventListener/on can't be called on a closed window"; // If window is closed, ignore any new callbacks
         eventName = eventName.toLowerCase();
 
         // Check if this event can be subscribed to via this function:
@@ -668,6 +668,19 @@ define([
         // Add event listener:
         this._eventListeners[eventName].push(eventListener);
     };
+	BaseWindow.prototype.on = BaseWindow.prototype.addEventListener;
+	
+	BaseWindow.prototype.once = function (eventName, eventListener) {
+        if (this.isClosed()) throw "once can't be called on a closed window"; // If window is closed, ignore any new callbacks
+		var thisWindow = this;
+		
+		function onceListener() {
+			thisWindow.off(eventName, onceListener);
+			eventListener.apply(this, arguments);
+		}
+		
+		this.on(eventName, onceListener);
+	};
 
     BaseWindow.prototype.removeEventListener = function (eventName, eventListener) {
         eventName = eventName.toLowerCase();
@@ -675,12 +688,13 @@ define([
         if (this._eventListeners[eventName] == null) return;
 
         // Check if eventListener is a function:
-        if (eventListener == null || eventListener.constructor !== Function) throw "removeEventListener requires argument 'eventListener' of type Function";
+        if (eventListener == null || eventListener.constructor !== Function) throw "removeEventListener/off requires argument 'eventListener' of type Function";
 
         // Remove event listener, if exists:
         var index = this._eventListeners[eventName].indexOf(eventListener);
         if (index >= 0) this._eventListeners[eventName].splice(index, 1);
     };
+	BaseWindow.prototype.off = BaseWindow.prototype.removeEventListener;
 
     BaseWindow.prototype.clearEvent = function (eventName) {
         eventName = eventName.toLowerCase();

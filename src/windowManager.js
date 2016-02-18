@@ -26,6 +26,16 @@ define([
         // Add event listener:
         eventListeners[eventName].push(eventListener);
     }
+	var on = addEventListener;
+	
+	function once(eventName, eventListener) {
+		function onceListener() {
+			off(eventName, onceListener);
+			eventListener.apply(this, arguments);
+		}
+		
+		on(eventName, onceListener);
+	};
 
     function removeEventListener(eventName, eventListener) {
         // If event listeners don't exist, bail:
@@ -38,6 +48,7 @@ define([
         var index = eventListeners[eventName].indexOf(eventListener);
         if (index >= 0) eventListeners[eventName].splice(index, 1);
     }
+	var off = removeEventListener;
 
     function triggerEvent(eventName) {
         // If event listeners don't exist, bail:
@@ -146,7 +157,10 @@ define([
 
     return {
         addEventListener: addEventListener,
+		on: on,
+		once: once,
         removeEventListener: removeEventListener,
+		off: off,
         registerWindow: registerWindow,
         registerApplicationWindow: registerApplicationWindow,
         removeWindow: removeWindow,
