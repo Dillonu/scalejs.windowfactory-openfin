@@ -363,25 +363,19 @@ define([
         attachDropdownHandler();
 		
 		thisWindow.addEventListener("_childLostFocus", function () {
-			if (thisWindow._closeOnLostFocus && !thisWindow.isFocused()) {
-				thisWindow.close();
-			}
-			if (thisWindow.getParent() != null) {
-				thisWindow.getParent().triggerEvent("_childLostFocus", thisWindow);
-			}
+            if (thisWindow._closeOnLostFocus && !thisWindow.isFocused() && !thisWindow.isChildFocused()) thisWindow.close();
+            var parent = thisWindow.getParent();
+            if (parent != null) parent.triggerEvent("_childLostFocus", thisWindow);
 		});
 		
-        //Need to deal with chromium not bring its select windows to the front after the bringToFront event is called on a parent window
         window.addEventListener("blur", function (event) {
-			if (thisWindow._closeOnLostFocus) {
-				//setTimeout(function() {
-					if (!thisWindow.isChildFocused()) thisWindow.close();
-				//}, 100);
-			}
-			if (thisWindow.getParent() != null) {
-				thisWindow.getParent().triggerEvent("_childLostFocus", thisWindow);
-			}
+            if (thisWindow._closeOnLostFocus && !thisWindow.isChildFocused()) thisWindow.close();
+            var parent = thisWindow.getParent();
+            if (parent != null) setTimeout(function () {
+                parent.triggerEvent("_childLostFocus", thisWindow);
+            }, 25); // Temp fix for focus being delayed between blur of one window, and focus of another
 			
+			//Need to deal with chromium not bring its select windows to the front after the bringToFront event is called on a parent window
             blurred = true;
             attachDropdownHandler();
             thisWindow.triggerEvent("blurred", event);
@@ -764,7 +758,7 @@ define([
     };
 	
     BaseWindow.prototype.isFocused = function () {
-        return this.getDocument().hasFocus();
+        return this.isReady() && this.getDocument().hasFocus();
     };
     BaseWindow.prototype.isChildFocused = function () {
 		var children = this.getChildren();
