@@ -361,9 +361,27 @@ define([
             }
         }
         attachDropdownHandler();
-
+		
+		thisWindow.addEventListener("_childLostFocus", function () {
+			if (thisWindow._closeOnLostFocus && !thisWindow.isFocused()) {
+				thisWindow.close();
+			}
+			if (thisWindow.getParent() != null) {
+				thisWindow.getParent().triggerEvent("_childLostFocus", thisWindow);
+			}
+		});
+		
         //Need to deal with chromium not bring its select windows to the front after the bringToFront event is called on a parent window
         window.addEventListener("blur", function (event) {
+			if (thisWindow._closeOnLostFocus) {
+				//setTimeout(function() {
+					if (!thisWindow.isChildFocused()) thisWindow.close();
+				//}, 100);
+			}
+			if (thisWindow.getParent() != null) {
+				thisWindow.getParent().triggerEvent("_childLostFocus", thisWindow);
+			}
+			
             blurred = true;
             attachDropdownHandler();
             thisWindow.triggerEvent("blurred", event);
@@ -380,12 +398,13 @@ define([
 
                 //Look for any windows set to be closed when they loose focus that are NOT child windows of the current parent window
                 // We do this check, as opposed to in blur event, because we manipulate the focus of windows, which could cause blur to accidently close a valid window:
-                var windows = windowManager.getWindows();
+                /*var windows = windowManager.getWindows();
                 for (var index = 0; index < windows.length; index += 1) {
                     if (windows[index] !== thisWindow && !windows[index].isChildOf(thisWindow) && windows[index]._closeOnLostFocus) {
-                        windows[index][windows[index]._config.hideOnClose ? "hide" : "close"]();
+                        //windows[index][windows[index]._config.hideOnClose ? "hide" : "close"]();
+						windows[index].close();
                     }
-                }
+                }*/
 
                 if (thisWindow._parent) thisWindow._parent.bringToFront();
 
@@ -743,6 +762,20 @@ define([
     BaseWindow.prototype.isHidden = function () {
         return !this._isVisible;
     };
+	
+    BaseWindow.prototype.isFocused = function () {
+        return this.getDocument().hasFocus();
+    };
+    BaseWindow.prototype.isChildFocused = function () {
+		var children = this.getChildren();
+		for (var index = 0; index < children.length; index += 1) {
+			if (children[index].isFocused() || children[index].isChildFocused()) return true;
+		}
+		return false;
+    };
+    BaseWindow.prototype.isBlurred = function () {
+        return !this.getDocument().hasFocus();
+    };
 
     BaseWindow.prototype.isMinimized = function () {
         return this._isMinimized;
@@ -885,8 +918,15 @@ define([
     };
 
     BaseWindow.prototype.close = function () {
-        this._window.close.apply(this._window, arguments);
+        if (this._config.hideOnClose) {
+            this._window.hide.apply(this._window, arguments);
+        } else {
+            this._window.close.apply(this._window, arguments);
+        }
     };
+	BaseWindow.prototype._close = function () {
+		this._window.close.apply(this._window, arguments);
+	};
 
     BaseWindow.prototype.minimize = function () {
         if (!this.isReady()) throw "minimize can't be called on an unready window";
