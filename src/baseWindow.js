@@ -126,8 +126,12 @@ define([
         window.windowWrapper = this;
 
         //// Get window position and size:
+		// TODO: Take into account monitor scale?
         this._bounds = new BoundingBox(window.screenLeft, window.screenTop,
                                        window.screenLeft + window.outerWidth, window.screenTop + window.outerHeight);
+		this._window.getBounds(function (event) {
+            thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
+		});
 
         //// Store window position and size on window move:
         function updatePositionAndSize(event) {
@@ -378,7 +382,7 @@ define([
                 // We do this check, as opposed to in blur event, because we manipulate the focus of windows, which could cause blur to accidently close a valid window:
                 var windows = windowManager.getWindows();
                 for (var index = 0; index < windows.length; index += 1) {
-                    if (windows[index] !== thisWindow && windows[index].isChildOf(thisWindow) && windows[index]._closeOnLostFocus) {
+                    if (windows[index] !== thisWindow && !windows[index].isChildOf(thisWindow) && windows[index]._closeOnLostFocus) {
                         windows[index][windows[index]._config.hideOnClose ? "hide" : "close"]();
                     }
                 }
@@ -479,7 +483,7 @@ define([
         this._eventListeners = {};
         this._isReady = false;
         this._isClosed = false;
-        this._isVisible = (isArgConfig ? config.autoShow : undefined);
+        this._isVisible = (isArgConfig ? config.autoShow : false);
 		this._isMinimized = (isArgConfig && config.state != null ? (config.state === "minimized") : false);
 		this._isMaximized = (isArgConfig && config.state != null ? (config.state === "maximized") : false);
         this._parent = (isArgConfig ? config._parent : undefined); // TODO: Validate object type
@@ -509,10 +513,22 @@ define([
             var thisWindow = this;
             this._window.isShowing(function (showing) {
                 thisWindow._isVisible = showing;
+				if (thisWindow._isVisible) {
+					thisWindow.triggerEvent("shown");
+				} else {
+					thisWindow.triggerEvent("hidden");
+				}
             });
 			this._window.getState(function (state) {
 				thisWindow._isMinimized = (state === "minimized");
 				thisWindow._isMaximized = (state === "maximized");
+				if (thisWindow.isMinimized()) {
+					thisWindow.triggerEvent("minimized");
+				} else if (thisWindow.isMaximized()) {
+					thisWindow.triggerEvent("maximized");
+				} else {
+					thisWindow.triggerEvent("restored");
+				}
 			});
             this._window.getOptions(function (options) {
                 thisWindow._config = options;
@@ -530,7 +546,7 @@ define([
         if (this._parent) {
             this._parent._children.push(this);
             var thisWindow = this;
-            this._parent.addEventListener("close", function () {
+            this._parent.addEventListener("closed", function () {
                 if (thisWindow._closeOnParentClose) {
                     thisWindow.close();
                 } else {
@@ -947,7 +963,7 @@ define([
 			for (var field in options) {
 				thisWindow._config[field] = options[field];
 			}
-			callback.apply(this._window, arguments);
+			if (callback != null && callback.constructor !== Function) callback.apply(thisWindow._window, arguments);
 		}
 		
         this._window.updateOptions(options, onSuccess, errorCallback);
