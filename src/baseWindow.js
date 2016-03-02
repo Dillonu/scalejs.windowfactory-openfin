@@ -11,6 +11,7 @@ define([
 
     var Vector = geometry.Vector,
         Position = geometry.Vector,
+        Size = geometry.Vector,
         BoundingBox = geometry.BoundingBox,
         CollisionMesh = geometry.CollisionMesh,
         snapPixels = 5,
@@ -455,10 +456,45 @@ define([
                 }
             });
         }
-
-        this._isReady = true; // TODO: Is this correct to be here?
-        this.triggerEvent("ready");
-        delete this._eventListeners["ready"];
+		
+		function done() {
+			thisWindow._isReady = true; // TODO: Is this correct to be here?
+			thisWindow.triggerEvent("ready");
+			delete thisWindow._eventListeners["ready"];
+		}
+		
+		function _show() {
+			if (thisWindow._autoShow) {
+				thisWindow.show(true, done, function () {
+					throw "Failed to show window! Error:" + JSON.stringify(arguments);
+				});
+			} else {
+				done();
+			}
+		}
+		
+		if (thisWindow._showPosition && thisWindow._showSize) {
+			thisWindow._window.setBounds(thisWindow._showPosition.left, thisWindow._showPosition.top,
+										 thisWindow._showSize.left, thisWindow._showSize.top, _show, function () {
+				throw "Failed to set bounds for window! Error:" + JSON.stringify(arguments);
+			});
+		} else if (thisWindow._showPosition) {
+			if (thisWindow._autoShow) {
+				thisWindow._window.showAt(thisWindow._showPosition.left, thisWindow._showPosition.top, true, done, function () {
+					throw "Failed to showAt for window! Error:" + JSON.stringify(arguments);
+				});
+			} else {
+				thisWindow._window.moveTo(thisWindow._showPosition.left, thisWindow._showPosition.top, done, function () {
+					throw "Failed to moveTo for window! Error:" + JSON.stringify(arguments);
+				});
+			}
+		} else if (thisWindow._showSize) {
+			thisWindow._window.resizeTo(thisWindow._showSize.left, thisWindow._showSize.top, "top-left", _show, function () {
+				throw "Failed to resizeTo for window! Error:" + JSON.stringify(arguments);
+			});
+		} else {
+			_show();
+		}
     }
 
     function BaseWindow(config, _) {
@@ -485,6 +521,18 @@ define([
 				config.name = windowManager.getUniqueWindowName();
 			}
 			config.saveWindowState = config.saveWindowState || false;
+			this._autoShow = config.autoShow;
+			config.autoShow = false;
+			if (config.position) {
+				// TODO: Validate right format
+				this._showPosition = new Position(config.position.left, config.position.top);
+				delete config.position;
+			}
+			if (config.size) {
+				// TODO: Validate right format
+				this._showSize = new Size(config.size.width, config.size.height);
+				delete config.size;
+			}
 		}
 
         // Handle base hidden properties:
@@ -618,21 +666,21 @@ define([
 
     BaseWindow.prototype.getPosition = function () {
         if (!this.isReady()) throw "getPosition can't be called on an unready window";
-        var contentWindow = this.getContentWindow();
+        //var contentWindow = this.getContentWindow();
         //if (contentWindow == null) throw "getPosition was unable to access window's contentWindow";
 
-        return new Vector(contentWindow.screenLeft, contentWindow.screenTop);
+        return this._bounds.getPosition();//new Vector(contentWindow.screenLeft, contentWindow.screenTop);
     };
     BaseWindow.prototype.getVector = BaseWindow.prototype.getPosition;
 
     BaseWindow.prototype.getWidth = function () {
         if (!this.isReady()) throw "getWidth can't be called on an unready window";
-        return this.getContentWindow().outerWidth;
+        return this._bounds.getWidth();//this.getContentWindow().outerWidth;
     };
 
     BaseWindow.prototype.getHeight = function () {
         if (!this.isReady()) throw "getHeight can't be called on an unready window";
-        return this.getContentWindow().outerHeight;
+        return this._bounds.getHeight();//this.getContentWindow().outerHeight;
     };
 
     BaseWindow.prototype.getSize = function () {
@@ -675,7 +723,12 @@ define([
     };
 
     BaseWindow.prototype.getMonitor = function () {
-        return this.getCollisionMesh().getColliding(monitorManager.getMonitors());
+		var collisionMesh = this.getCollisionMesh(),
+			monitors = monitorManager.getMonitors();
+			
+		for (var index = 0; index < monitors.length; index += 1) {
+			if (collisionMesh.isColliding(monitors[index])) return monitors[index];
+		}
     };
 
     BaseWindow.prototype.addEventListener = function (eventName, eventListener) {
