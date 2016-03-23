@@ -10,6 +10,7 @@ define([
     var Vector = geometry.Vector,
         Position = geometry.Vector,
         BoundingBox = geometry.BoundingBox,
+        CollisionMesh = geometry.CollisionMesh,
         readyListeners = [],
         _isReady = false,
         currentMonitorInfo,
@@ -69,18 +70,56 @@ define([
 	    return new Monitor(currentMonitors[0]);
 	}
 
-	function determineMonitor(left, top) {
-	    // Accepts:
-	    // determineMonitor(left, top);
-	    // determineMonitor({left: ..., top: ...});
-	    // determineMonitor(vector);
-	    var pos = new Position(left, top);
+	function determineMonitor(left, top, right, bottom) {
+        // Accepts:
+		// determineMonitor(boundingBox);
+        // determineMonitor(left, top, right, bottom);
+        // determineMonitor(vector);
+        // determineMonitor(left, top);
+        var box;
+        if (arguments.length === 2 || left instanceof Position) {
+            box = new Position(left, top);
+        } else {
+            box = new BoundingBox(left, top, right, bottom);
+        }
 
-	    for (var index = 0; index < currentMonitors.length; index += 1) {
-	        if (currentMonitors[index].isContains(pos)) {
-	            return new Monitor(currentMonitors[index]);
-	        }
-	    }
+        for (var index = 0; index < currentMonitors.length; index += 1) {
+            if (currentMonitors[index].isContains(box)) {
+                return new Monitor(currentMonitors[index]);
+            }
+        }
+	}
+	
+	function determinePartialMonitor(left, top, right, bottom) {
+        // Accepts:
+		// determinePartialMonitor(boundingBox);
+        // determinePartialMonitor(left, top, right, bottom);
+        // determinePartialMonitor(vector);
+        // determinePartialMonitor(left, top);
+        var box;
+        if (arguments.length === 2 || left instanceof Position) {
+            box = new Position(left, top);
+        } else {
+            box = new BoundingBox(left, top, right, bottom);
+        }
+		box = box.getBoundingBox();
+		
+		var monitor,
+			maxArea = 0;
+        for (var index = 0; index < currentMonitors.length; index += 1) {
+            if (currentMonitors[index].isColliding(box)) {
+				var intersection = box.getIntersection(currentMonitors[index]);
+				if (intersection instanceof BoundingBox) {
+					// TODO: What if one dimension is 0? And the other is not? So it collides on 1 column of pixels or something?
+					var area = intersection.getArea();
+					if (area >= maxArea) {
+						maxArea = area;
+						monitor = currentMonitors[index];
+					}
+				}
+            }
+        }
+		if (monitor != null) return new Monitor(monitor);
 	}
 
 	function getDeviceScaleFactor() {
@@ -96,6 +135,10 @@ define([
 
 	function isVisible(window) {
 	    return window.getCollisionMesh().someColliding(currentMonitors);
+	}
+	
+	function isContained(window) {
+		return new CollisionMesh(currentMonitors).someContains(window);
 	}
     
 	fin.desktop.main(function () {
@@ -161,10 +204,12 @@ define([
 	    getMonitors: getMonitors,
 	    getPrimaryMonitor: getPrimaryMonitor,
 	    determineMonitor: determineMonitor,
+		determinePartialMonitor: determinePartialMonitor,
 	    getDeviceScaleFactor: getDeviceScaleFactor,
 	    getDeviceScaleInvFactor: getDeviceScaleInvFactor,
 	    getMouseMonitor: getMouseMonitor,
 	    isVisible: isVisible,
+		isContained: isContained,
         isReady: isReady,
 		onReady: onReady
 	};

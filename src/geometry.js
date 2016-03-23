@@ -98,6 +98,9 @@ define([
 	BoundingBox.prototype.getSize = function () {
 	    return new Vector(this.getWidth(), this.getHeight());
 	};
+	BoundingBox.prototype.getArea = function () {
+		return this.getWidth() * this.getHeight();
+	};
 	BoundingBox.prototype.getPosition = function () {
 	    return new Vector(this.left, this.top);
 	};
@@ -118,6 +121,22 @@ define([
 	    if (other.constructor !== BoundingBox) throw "getCenteredOnPosition requires argument 'other' to resolve to type BoundingBox";
 
 	    return other.getCenterPosition().subtract(this.getCenterPosition().subtract(this.getPosition()));
+	};
+	BoundingBox.prototype.getIntersection = function (other) {
+	    if (other == null) throw "getIntersection requires argument 'other'";
+	    other = other.getBoundingBox();
+	    if (other.constructor !== BoundingBox) throw "getIntersection requires argument 'other' to resolve to type BoundingBox";
+
+		var left = Math.max(this.left, other.left),
+			top = Math.max(this.top, other.top),
+			right = Math.min(this.right, other.right),
+			bottom = Math.min(this.bottom, other.bottom);
+
+		if ((left < right && top < bottom) || (left === right && top < bottom) || (top === bottom && left < right)) {
+			return new BoundingBox(left, top, right, bottom);
+		} else if (left === right && top === bottom) {
+			return new Position(left, top);
+		}
 	};
 	BoundingBox.prototype.moveTo = function (left, top) {
 	    var newPosition = new Vector(left, top);
@@ -316,9 +335,20 @@ define([
 	    return this;
 	};
 	CollisionMesh.prototype.isContains = function (other) {
+		// TODO: Needs to check that all of other's boxes are contained by this's boxes. NOT check if only one is!
 	    if (other == null) throw "isContains requires argument 'other'";
 	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
 	    if (other.constructor !== CollisionMesh) throw "isContains requires argument 'other' to resolve to type CollisionMesh";
+
+	    for (var index = 0; index < this.boxes.length; index += 1) {
+	        if (this.boxes[index].someContains(other.boxes)) return true;
+	    }
+	    return false;
+	};
+	CollisionMesh.prototype.someContains = function (other) {
+	    if (other == null) throw "someContains requires argument 'other'";
+	    other = (other.constructor === Array ? new CollisionMesh(other) : other.getCollisionMesh());
+	    if (other.constructor !== CollisionMesh) throw "someContains requires argument 'other' to resolve to type CollisionMesh";
 
 	    for (var index = 0; index < this.boxes.length; index += 1) {
 	        if (this.boxes[index].someContains(other.boxes)) return true;

@@ -928,9 +928,11 @@ define([
         if (element == null) return;
 
         var $element = $(element, this.getDocument());
-
-        this._window.resizeTo($element.outerWidth(true), $element.outerHeight(true), "top-left");
-        this._bounds.resizeTo($element.outerWidth(true), $element.outerHeight(true));
+		
+		var width = Math.max(Math.min($element.outerWidth(true), this._config.maxWidth || 65535), this._config.minWidth || 0);
+		var height = Math.max(Math.min($element.outerHeight(true), this._config.maxHeight || 65535), this._config.minHeight || 0);
+        this._window.resizeTo(width, height, "top-left");
+        this._bounds.resizeTo(width, height);
     };
 
     BaseWindow.prototype.addDraggableElements = function (elements) {
