@@ -455,6 +455,11 @@ define([
                     }
                 }
             });
+			window.addEventListener('keydown', function (event) {
+                if (event.ctrlKey && event.keyCode === 48) { // ctrl+0
+                    thisWindow.resetZoom();
+                }
+            });
         }
 		
 		function done() {
@@ -911,15 +916,14 @@ define([
         this.getDocument().body.style.zoom = percent;
         this.triggerEvent("zoom", arguments);
     };
+	BaseWindow.prototype.resetZoom = function () {
+		this.setZoom(1);
+	}
     BaseWindow.prototype.zoomIn = function () {
-        var document = this.getDocument();
-        document.body.style.zoom = (document.body.style.zoom || 1) * 1.1;
-        this.triggerEvent("zoom", arguments);
+		this.setZoom(this.getZoom() * 1.1);
     };
     BaseWindow.prototype.zoomOut = function () {
-        var document = this.getDocument();
-        document.body.style.zoom = (document.body.style.zoom || 1) / 1.1;
-        this.triggerEvent("zoom", arguments);
+		this.setZoom(this.getZoom() / 1.1);
     };
 
     BaseWindow.prototype.fitToElement = function (element) {
