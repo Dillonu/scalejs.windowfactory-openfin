@@ -456,7 +456,7 @@ define([
                 }
             });
 			window.addEventListener('keydown', function (event) {
-                if (event.ctrlKey && event.keyCode === 48) { // ctrl+0
+                if (event.ctrlKey && (event.keyCode === 48 || event.keyCode === 96)) { // ctrl+digit0 or ctrl+numpad0
                     thisWindow.resetZoom();
                 }
             });
