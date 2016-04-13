@@ -113,7 +113,7 @@ define([
 
     function getWindowByName(name) {
         for (var i = 0; i < windows.length; i += 1) {
-            if (windows[i]._config.name === name) {
+            if (windows[i]._uuid === name) {
                 return windows[i];
             }
         }
@@ -179,6 +179,7 @@ define([
 	    getApplicationWindows: getApplicationWindows,
 	    getWindowByElement: getWindowByElement,
 	    getWindowByName: getWindowByName,
+		getWindowByUuid: getWindowByName,
         getUniqueWindowName: getUniqueWindowName,
 		getVisibleWindows: getVisibleWindows,
 		getVisibleApplicationWindows: getVisibleApplicationWindows

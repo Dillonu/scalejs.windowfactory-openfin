@@ -28,7 +28,7 @@ define([
 		});
         this._window.getOptions(function (options) {
             thisWindow._config = options;
-			thisWindow.setTitle(); // set using default this._config.name
+			thisWindow.setTitle(); // set using default this._uuid
         });
 
         // Remove from parent on close:
@@ -518,12 +518,12 @@ define([
 					// No window name given, and showTaskbarIcon is not set!
 					// Therefore default to not showing taskbar and give a random unique name:
 					config.showTaskbarIcon = false;
-					config.name = windowManager.getUniqueWindowName(); // If no name passed, create a unique one.
+					config.name = config.uuid || windowManager.getUniqueWindowName(); // If no name passed, create a unique one.
 					this._title = config.name;
 				}
 			} else {
 				this._title = config.name;
-				config.name = windowManager.getUniqueWindowName();
+				config.name = config.uuid || windowManager.getUniqueWindowName();
 			}
 			config.saveWindowState = config.saveWindowState || false;
 			this._autoShow = config.autoShow;
@@ -541,6 +541,8 @@ define([
 		}
 
         // Handle base hidden properties:
+		this._uuid = config.name;
+		delete config.uuid;
 		this.description = (isArgConfig ? config.description : "");
 		delete config.description;
 		this.debug = (isArgConfig ? config.debug : "");
@@ -878,12 +880,12 @@ define([
 	BaseWindow.prototype.getGUID = function () {
         if (!this.isReady()) throw "getGUID/getUUID can't be called on an unready window";
         if (this.isClosed()) throw "getGUID/getUUID can't be called on a closed window";
-		return this._config.name;
+		return this._uuid;
 	};
 	BaseWindow.prototype.getUUID = BaseWindow.prototype.getGUID;
 
     BaseWindow.prototype.getTitle = function () {
-        var title = this._title || this._config.name || "";
+        var title = this._title || this._uuid || "";
 
         // If window not setup, or window is closed:
         if (!this.isReady()) return title;
@@ -903,8 +905,8 @@ define([
             title.id = "ui-title";
             document.head.appendChild(title); // Needed for window renaming
         }
-		var oldname = this._title || this._config.name || "";
-		this._title = newName || this._title || this._config.name || "";
+		var oldname = this._title || this._uuid || "";
+		this._title = newName || this._title || this._uuid || "";
         title.innerHTML = this._title;
 		this.triggerEvent("rename", this._title, oldname);
     };
