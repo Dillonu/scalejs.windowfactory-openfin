@@ -5,7 +5,7 @@ define([
 
 	function Vector(left, top) {
 		if (!(this instanceof Vector)) return new Vector(left, top);
-		
+
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
 	        //new Vector(obj)
@@ -33,6 +33,15 @@ define([
 	Vector.prototype.getCollisionMesh = function () {
 	    return new CollisionMesh(this.getBoundingBox());
 	};
+	Vector.prototype.distanceSquared = function (left, top) {
+		var other = new Vector(left, top);
+		var diff = other.subtract(this);
+
+		return diff.left*diff.left + diff.top*diff.top;
+	};
+	Vector.prototype.distance = function (left, top) {
+		return Math.sqrt(this.distanceSquared(left, top));
+	}
 	Vector.prototype.set = function (other) {
 	    if (other == null) throw "set requires argument 'other'";
 	    other = other.getVector();
@@ -51,6 +60,9 @@ define([
 	    this.top += other.top;
 	    return this;
 	};
+	/*Vector.add = function (a, b) {
+		return a.clone().add(b);
+	};*/
 	Vector.prototype.subtract = function (other) {
 	    if (other == null) throw "subtract requires argument 'other'";
 	    other = other.getVector();
@@ -69,7 +81,7 @@ define([
 
 	function BoundingBox(left, top, right, bottom) {
 		if (!(this instanceof BoundingBox)) return new BoundingBox(left, top, right, bottom);
-		
+
 	    var obj = left;
 	    if (obj != null && obj.constructor !== Number) {
 	        if (obj.getBoundingBox != null) obj = obj.getBoundingBox();
@@ -88,6 +100,9 @@ define([
 	}
 	BoundingBox.prototype.clone = function () {
 	    return new BoundingBox(this);
+	};
+	BoundingBox.prototype.isNaN = function () {
+	    return isNaN(this.left) || isNaN(this.top) || isNaN(this.right) || isNaN(this.bottom);
 	};
 	BoundingBox.prototype.getWidth = function () {
 	    return Math.abs(this.right - this.left);
@@ -115,6 +130,13 @@ define([
 	BoundingBox.prototype.getCenterPosition = function () {
 	    return new Vector(this.left + this.getWidth() / 2, this.top + this.getHeight() / 2);
 	};
+	BoundingBox.prototype.difference = function (other) {
+	    if (other == null) throw "difference requires argument 'other'";
+	    other = other.getBoundingBox();
+	    if (other.constructor !== BoundingBox) throw "difference requires argument 'other' to resolve to type BoundingBox";
+
+		return BoundingBox(this.left - other.left, this.top - other.top, this.right - other.right, this.bottom - other.bottom);
+	};
 	BoundingBox.prototype.getCenteredOnPosition = function (other) {
 	    if (other == null) throw "getCenteredOnPosition requires argument 'other'";
 	    other = other.getBoundingBox();
@@ -137,6 +159,25 @@ define([
 		} else if (left === right && top === bottom) {
 			return new Position(left, top);
 		}
+	};
+	BoundingBox.prototype.getDistanceSquaredToPoint = function (left, top) {
+	    var other = new Vector(left, top);
+		var cLeft = (other.left <= this.left ? this.left : (other.left >= this.right ? this.right : other.left));
+		var cTop = (other.top <= this.top ? this.top : (other.top >= this.bottom ? this.bottom : other.top));
+		var cPos = new Vector(cLeft, cTop);
+
+		return cPos.distanceSquared(other);
+	};
+	BoundingBox.prototype.getDistanceToPoint = function (left, top) {
+		return Math.sqrt(this.getDistanceSquaredToPoint(left, top));
+	};
+	BoundingBox.prototype.set = function (left, top, right, bottom) {
+	    var newBounds = new BoundingBox(left, top, right, bottom);
+	    if (newBounds.left != null) this.left = newBounds.left;
+	    if (newBounds.top != null) this.top = newBounds.top;
+	    if (newBounds.right != null) this.right = newBounds.right;
+	    if (newBounds.bottom != null) this.bottom = newBounds.bottom;
+	    return this;
 	};
 	BoundingBox.prototype.moveTo = function (left, top) {
 	    var newPosition = new Vector(left, top);
@@ -162,10 +203,27 @@ define([
 	    }
 	    return this;
 	};
-	BoundingBox.prototype.resizeTo = function (width, height) {
-	    var newSize = new Vector(width, height);
-	    if (newSize.left != null) this.right = this.left + newSize.left;
-	    if (newSize.top != null) this.bottom = this.top + newSize.top;
+	BoundingBox.prototype.resizeTo = function (width, height, anchor) {
+		// NOTE: anchor supports "top-left", "top-right", "bottom-left", or "bottom-right". By default it is "top-left".
+		// NOTE: anchor also supports being passed as a position. Allowing the resize anchor to be anywhere other than the predefined strings.
+		var curSize = this.getSize();
+	    var newSize = new Vector(width || curSize.left, height || curSize.top);
+		anchor = anchor || "top-left";
+		if (typeof anchor === 'string' || anchor instanceof String) {
+			var anchorStr = anchor;
+			anchor = this.getPosition();
+			if (anchorStr.indexOf("right") >= 0) anchor.left += curSize.left;
+			if (anchorStr.indexOf("bottom") >= 0) anchor.top += curSize.top;
+		}
+
+		this.left += (anchor.left - this.left) * (curSize.left - newSize.left) / curSize.left;
+		this.right += (anchor.left - this.right) * (curSize.left - newSize.left) / curSize.left;
+		this.top += (anchor.top - this.top) * (curSize.top - newSize.top) / curSize.top;
+		this.bottom += (anchor.top - this.bottom) * (curSize.top - newSize.top) / curSize.top;
+		//this.left += (this.left - anchor.left) / curSize.left * newSize.left;
+		//this.right += (this.right - anchor.left) / curSize.left * newSize.left;
+		//this.top += (this.top - anchor.top) / curSize.top * newSize.top;
+		//this.bottom += (this.bottom - anchor.top) / curSize.top * newSize.top;
 	    return this;
 	};
 	BoundingBox.prototype.isContains = function (other) {
@@ -191,6 +249,71 @@ define([
 
 	    return ((this.top <= other.bottom && this.bottom >= other.top) && (this.left === other.right || this.right === other.left)) ||
                ((this.left <= other.right && this.right >= other.left) && (this.top === other.bottom || this.bottom === other.top));
+	};
+	BoundingBox.prototype.getEdgeTouching = function (others) {
+	    if (others == null) throw "getEdgeTouching requires argument 'others'";
+	    if (others.constructor !== Array) others = [others];
+
+		for (var index = 0; index < others.length; index += 1) {
+			var other = others[index].getBoundingBox();
+			if (this.top <= other.bottom && this.bottom >= other.top) {
+				if (this.left === other.right) return "left";
+				if (this.right === other.left) return "right";
+			}
+			if (this.left <= other.right && this.right >= other.left) {
+				if (this.top === other.bottom) return "top";
+				if (this.bottom === other.top) return "bottom";
+			}
+		}
+	};
+	BoundingBox.prototype.getOtherEdgeTouching = function (others) {
+	    if (others == null) throw "getOtherEdgeTouching requires argument 'others'";
+	    if (others.constructor !== Array) others = [others];
+
+		for (var index = 0; index < others.length; index += 1) {
+			var other = others[index].getBoundingBox();
+			if (this.top <= other.bottom && this.bottom >= other.top) {
+				if (this.left === other.right) return "right";
+				if (this.right === other.left) return "left";
+			}
+			if (this.left <= other.right && this.right >= other.left) {
+				if (this.top === other.bottom) return "bottom";
+				if (this.bottom === other.top) return "top";
+			}
+		}
+	};
+	BoundingBox.prototype.getEdgeClosestOrder = function (other) {
+	    if (other == null) throw "getEdgeClosest requires argument 'other'";
+	    other = other.getBoundingBox();
+	    if (other.constructor !== BoundingBox) throw "getEdgeClosest requires argument 'other' to resolve to type BoundingBox";
+
+		var centerPos = this.getCenterPosition();
+		var dis = [];
+		dis.push({
+			"edge": "left",
+			dis: other.getDistanceSquaredToPoint(this.left, centerPos.top)
+		});
+		dis.push({
+			"edge": "top",
+			dis: other.getDistanceSquaredToPoint(centerPos.left, this.top)
+		});
+		dis.push({
+			"edge": "right",
+			dis: other.getDistanceSquaredToPoint(this.right, centerPos.top)
+		});
+		dis.push({
+			"edge": "bottom",
+			dis: other.getDistanceSquaredToPoint(centerPos.left, this.bottom)
+		});
+		dis.sort(function (a, b) {
+			return a.dis - b.dis;
+		});
+
+		return dis.map(function (dis) { return dis.edge; });
+	};
+	BoundingBox.prototype.getEdgeClosest = function (other) {
+	    var edges = this.getEdgeClosestOrder(other);
+		return edges[0];
 	};
 	BoundingBox.prototype.someTouching = function (others) {
 	    if (others == null) throw "someTouching requires argument 'others'";
@@ -245,9 +368,10 @@ define([
 	    return distance;
 	};*/
 
-	function CollisionMesh(boxes) {
+	function CollisionMesh(boxes, opts) {
 		if (!(this instanceof CollisionMesh)) return new CollisionMesh(boxes);
-		
+		opts = opts || {};
+
 	    if (boxes == null) throw "CollisionMesh constructor requires argument 'boxes'";
 	    if (boxes.constructor !== Array) boxes = [boxes];
 	    this.boxes = [];
@@ -257,7 +381,7 @@ define([
 	        } else if (boxes[index].constructor === CollisionMesh) {
 	            this.boxes = this.boxes.concat(boxes[index].boxes);
 	        } else {
-	            this.boxes = this.boxes.concat(boxes[index].getCollisionMesh().boxes);
+	            this.boxes = this.boxes.concat(boxes[index].getCollisionMesh(opts).boxes);
 	        }
 	    }
 	}

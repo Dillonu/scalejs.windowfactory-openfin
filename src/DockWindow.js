@@ -8,6 +8,8 @@ define([
     BaseWindow
 ) {
     "use strict";
+    // TODO: Dock windows based on EDGES they stick to, rather than just docking them.
+    //       This is useful to solve issues like resize moving.
 
     var Vector = geometry.Vector,
         Position = geometry.Vector,
@@ -15,7 +17,7 @@ define([
 
     function DockWindow(config) {
 		if (!(this instanceof DockWindow)) return new DockWindow(config);
-		
+
         BaseWindow.apply(this, arguments);
         this._dockedGroup = [this];
 		this._isDocked = false;
@@ -42,11 +44,23 @@ define([
                 }
             }
         });
-        
+
         this.addEventListener("hidden", this.undock);
-        this.addEventListener("minimized", this.undock);
+        //this.addEventListener("minimized", this.undock);
         this.addEventListener("maximized", this.undock);
+        this.addEventListener("restored", function () {
+			for (var index = 0; index < this._dockedGroup.length; index += 1) {
+				if (this._dockedGroup[index] !== this) this._dockedGroup[index].toBase().restore();
+			}
+		});
         this.addEventListener("closed", this.undock);
+        //this.addEventListener("resized", this.undock);
+        this.addEventListener("childremove", function (window) {
+            if (window._addToParentMesh) {
+                this.undock();
+                //this.triggerEvent("resized", this.getBounds(true));
+            }
+        })
 
         // Dock when snapped:
         this.addEventListener("_endSnap", this.dock);
@@ -69,7 +83,7 @@ define([
         if (this._dockedGroup.indexOf(other) >= 0) return; // Don't have to do anything if already docked!
 
         var otherGroup = other._dockedGroup;
-		
+
 		// Verify it is touching one window:
 		if (!other.getCollisionMesh().isTouching(this.getCollisionMesh())) return; // Don't dock if none are touching
 
@@ -79,7 +93,7 @@ define([
                 otherGroup[index]._dockedGroup = this._dockedGroup;
             }
         }
-        
+
         for (var index = 0; index < this._dockedGroup.length; index += 1) {
             //this._dockedGroup[index].isDocked(true);
 			this._dockedGroup[index]._isDocked = true;
@@ -115,28 +129,44 @@ define([
         }
     };
 
-    DockWindow.prototype.getCollisionMeshWindows = function (ignoreDockedGroup) {
+    DockWindow.prototype.getCollisionMeshWindows = function (opts) {
         if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // Does not use super, to avoid changing the proto of this in windows array.
+        opts = opts || {};
         var windows = [this];
-        for (var index = 0; index < this._children.length; index += 1) {
-            if (this._children[index]._addToParentMesh) windows = windows.concat(this._children[index].getCollisionMeshWindows());//windows.push(this._children[index]);
+        if (!opts.ignoreChildren) {
+            for (var index = 0; index < this._children.length; index += 1) {
+                if (this._children[index]._addToParentMesh) windows = windows.concat(this._children[index].getCollisionMeshWindows(opts));//windows.push(this._children[index]);
+            }
         }
-        if (!ignoreDockedGroup) {
+        if (!opts.ignoreDockedGroup) {
+            var nopts = {};
+            for (var field in opts) { nopts[field] = opts[field]; }
+            nopts.ignoreDockedGroup = true;
             for (var index = 0; index < this._dockedGroup.length; index += 1) {
                 // Ignore this window, as it was already added by the super:
-                if (this._dockedGroup[index] !== this) windows = windows.concat(this._dockedGroup[index].getCollisionMeshWindows(true));//windows.push(this._dockedGroup[index]);
+                if (this._dockedGroup[index] !== this) windows = windows.concat(this._dockedGroup[index].getCollisionMeshWindows(nopts));//windows.push(this._dockedGroup[index]);
             }
         }
         return windows;
     };
 
-    DockWindow.prototype.getCollisionMesh = function () {
+    DockWindow.prototype.getCollisionMesh = function (opts) {
         if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // Call super on each docked window:
-        var boxes = [];
-        for (var index = 0; index < this._dockedGroup.length; index += 1) {
-            boxes = boxes.concat(this._dockedGroup[index].toBase().getCollisionMesh().boxes);//BaseWindow.prototype.getCollisionMesh.call(this).boxes);
+        var boxes = [this.getBounds()];
+        opts = opts || {};
+        if (!opts.ignoreChildren) {
+            for (var index = 0; index < this._children.length; index += 1) {
+                if (this._children[index]._addToParentMesh) {
+                    boxes = boxes.concat(this._children[index].getCollisionMesh(opts).boxes)
+                }
+            }
+        }
+        if (!opts.ignoreDockedGroup) {
+            for (var index = 0; index < this._dockedGroup.length; index += 1) {
+                if (this._dockedGroup[index] !== this) boxes = boxes.concat(this._dockedGroup[index].toBase().getCollisionMesh(opts).boxes);//BaseWindow.prototype.getCollisionMesh.call(this).boxes);
+            }
         }
         return new CollisionMesh(boxes);
     };
@@ -164,7 +194,21 @@ define([
             this.toBase().moveTo(newPos.left, newPos.top, callback, errorCallback);
         }
     };
-	
+
+	DockWindow.prototype.minimize = function () {
+        for (var index = 0; index < this._dockedGroup.length; index += 1) {
+			var window = this._dockedGroup[index].toBase();
+            window.minimize.apply(window, arguments);
+        }
+    };
+
+	DockWindow.prototype.restore = function () {
+        for (var index = 0; index < this._dockedGroup.length; index += 1) {
+			var window = this._dockedGroup[index].toBase();
+            window.restore.apply(window, arguments);
+        }
+    };
+
 	DockWindow.prototype.isDocked = function () {
 		return this._isDocked;
 	};

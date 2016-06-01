@@ -7,6 +7,8 @@ define([
         windows = [],
         applicationWindows = [],
         eventListeners = {},
+        focusedWindow,
+        nextFocusedWindow,
         allowableEventTypes = new Set(["register", "remove"]);
 
 
@@ -163,6 +165,19 @@ define([
 		
 		return visibleWindows;
 	}
+    
+    function setFocusedWindow(window) {
+        focusedWindow = window;
+    }
+    function getFocusedWindow() {
+        return focusedWindow;
+    }
+    function setNextFocusedWindow(window) {
+        nextFocusedWindow = window;
+    }
+    function getNextFocusedWindow() {
+        return nextFocusedWindow;
+    }
 
     return {
         addEventListener: addEventListener,
@@ -182,6 +197,10 @@ define([
 		getWindowByUuid: getWindowByName,
         getUniqueWindowName: getUniqueWindowName,
 		getVisibleWindows: getVisibleWindows,
-		getVisibleApplicationWindows: getVisibleApplicationWindows
+		getVisibleApplicationWindows: getVisibleApplicationWindows,
+        setFocusedWindow: setFocusedWindow,
+        getFocusedWindow: getFocusedWindow,
+        setNextFocusedWindow: setNextFocusedWindow,
+        getNextFocusedWindow: getNextFocusedWindow
 	};
 });

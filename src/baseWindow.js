@@ -93,11 +93,13 @@ define([
             thisWindow._isMinimized = false;
             thisWindow._isMaximized = false;
             thisWindow.fitToElement();
+            thisWindow._syncBounds();
             thisWindow.triggerEvent("restored", event);
         });
         this._window.addEventListener("maximized", function (event) {
             thisWindow._isMinimized = false;
             thisWindow._isMaximized = true;
+            thisWindow._syncBounds();
             thisWindow.triggerEvent("maximized", event);
         });
 
@@ -108,8 +110,9 @@ define([
             thisWindow.bringToFront();
             if (!monitorManager.isVisible(thisWindow)) thisWindow.moveTo(thisWindow.getCollisionMesh().getBoundingBox().getCenteredOnPosition(monitorManager.getMouseMonitor()));
             for (var index = 0; index < thisWindow._children.length; index += 1) {
-                thisWindow._children[index].bringToFront();
+                if (thisWindow._children[index].isReady()) thisWindow._children[index].bringToFront();
             }
+            windowManager.setFocusedWindow(thisWindow);
             thisWindow.triggerEvent("focused", event);
         });
 
@@ -123,22 +126,32 @@ define([
             startPos = [],
             movedSinceDragStart,
             thisWindow = this;
-        
+
         window.windowWrapper = this;
 
         //// Get window position and size:
-		// TODO: Take into account monitor scale?
-        this._bounds = new BoundingBox(window.screenLeft, window.screenTop,
-                                       window.screenLeft + window.outerWidth, window.screenTop + window.outerHeight);
-		this._window.getBounds(function (event) {
-            thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
-		});
+        thisWindow._syncBounds();
+        thisWindow._isResizing = false;
 
         //// Store window position and size on window move:
         function updatePositionAndSize(event) {
+            var oldBounds = thisWindow._bounds.clone();
             thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
             if (event.changeType !== 0) {
-                thisWindow.undock();
+                //thisWindow.undock();
+                if (event.type.indexOf("changing") >= 0) {
+                    if (!thisWindow.isResizing()) {
+                        thisWindow._isResizing = true;
+                        // TODO: Cache all windows in resize group (what edge they are part of & starting position):
+                        thisWindow._startResizingBounds = oldBounds.clone();
+                        thisWindow._resizeEdgeBuckets = thisWindow._getEdgeBuckets(thisWindow._startResizingBounds);
+                    }
+                } else {
+                        thisWindow._isResizing = false;
+                }
+                // TODO: Pass in window cached window edges & diff from starting resize event!
+                var diffBounds = thisWindow._bounds.difference(thisWindow._startResizingBounds);
+                thisWindow._resizedEvent(thisWindow._resizeEdgeBuckets, diffBounds);
                 thisWindow.triggerEvent("resized", thisWindow.getBounds(true));
             }
             if (event.changeType !== 1) thisWindow.triggerEvent("moved", thisWindow._bounds.getPosition());
@@ -150,7 +163,7 @@ define([
 
         this.addEventListener("childremove", function (window) {
             if (window._addToParentMesh) {
-                this.undock();
+                //this.undock();
                 //this.triggerEvent("resized", this.getBounds(true));
             }
         })
@@ -217,7 +230,7 @@ define([
             for (var index = 0; index < otherWindows.length; index += 1) {
                 if (meshWindows.indexOf(otherWindows[index]) < 0 && otherWindows[index].isVisible() && otherWindows[index].isReady()) snapWindows.push(otherWindows[index]);
             }
-			
+
 			// TODO: Add monitor snapping here, before window snapping.
 
             for (var snapIndex = 0; snapIndex < snapWindows.length; snapIndex += 1) {
@@ -298,7 +311,7 @@ define([
                     }
                 }
             }
-            
+
             var newMesh = thisWindow.getCollisionMesh().moveBy((new Position(newPos)).subtract(thisCurrentBounds.getPosition()));
 
             // Move window:
@@ -323,20 +336,15 @@ define([
         }
 
         window.addEventListener("mousemove", function (event) {
-            if (mouseDown) {
-                var monitorScaleFactor = monitorManager.getDeviceScaleInvFactor();
-
-                onDrag(event.screenX * monitorScaleFactor - dragStartX, event.screenY * monitorScaleFactor - dragStartY, false);
-            }
+            if (mouseDown) onDrag(event.screenX - dragStartX, event.screenY - dragStartY, false);
         });
 
         //// Setup drag end:
         window.addEventListener("mouseup", function (event) {
             if (mouseDown) {
                 mouseDown = false;
-                var monitorScaleFactor = monitorManager.getDeviceScaleInvFactor();
 
-                onDrag(event.screenX * monitorScaleFactor - dragStartX, event.screenY * monitorScaleFactor - dragStartY, true);
+                onDrag(event.screenX - dragStartX, event.screenY - dragStartY, true);
 
                 // Remove _startDragPos as it is only suppose to be there when being dragged:
                 var windows = thisWindow.getCollisionMeshWindows();
@@ -362,21 +370,21 @@ define([
             }
         }
         attachDropdownHandler();
-		
+
 		thisWindow.addEventListener("_childLostFocus", function () {
-            if (thisWindow._closeOnLostFocus && !thisWindow.isFocused() && !thisWindow.isChildFocused()) thisWindow.close();
+            if (thisWindow._closeOnLostFocus && !(thisWindow.isFocused() || thisWindow.isNextFocused()) && !(thisWindow.isChildFocused() || thisWindow.isChildNextFocused())) thisWindow.close();
             var parent = thisWindow.getParent();
             if (parent != null) parent.triggerEvent("_childLostFocus", thisWindow);
-		});
-		
-        window.addEventListener("blur", function (event) {
-            if (thisWindow._closeOnLostFocus && !thisWindow.isChildFocused()) thisWindow.close();
+        });
+
+        thisWindow._window.addEventListener("blurred", function (event) {
+            if (thisWindow._closeOnLostFocus && !(thisWindow.isChildFocused() || thisWindow.isChildNextFocused())) thisWindow.close();
             var parent = thisWindow.getParent();
             if (parent != null) setTimeout(function () {
                 parent.triggerEvent("_childLostFocus", thisWindow);
             }, 25); // Temp fix for focus being delayed between blur of one window, and focus of another
-			
-			//Need to deal with chromium not bring its select windows to the front after the bringToFront event is called on a parent window
+
+            //Need to deal with chromium not bring its select windows to the front after the bringToFront event is called on a parent window
             blurred = true;
             attachDropdownHandler();
             thisWindow.triggerEvent("blurred", event);
@@ -461,13 +469,17 @@ define([
                 }
             });
         }
-		
+
 		function done() {
-			thisWindow._isReady = true; // TODO: Is this correct to be here?
-			thisWindow.triggerEvent("ready");
-			delete thisWindow._eventListeners["ready"];
+            thisWindow._syncBounds(function () {
+                thisWindow._isReady = true; // TODO: Is this correct to be here?
+                thisWindow.triggerEvent("ready");
+                delete thisWindow._eventListeners["ready"];
+            }, function () {
+                throw "Failed to sync bounds for window! Error:" + JSON.stringify(arguments);
+            });
 		}
-		
+
 		function _show() {
 			if (thisWindow._autoShow) {
 				thisWindow.show(true, done, function () {
@@ -477,24 +489,24 @@ define([
 				done();
 			}
 		}
-		
+
 		if (thisWindow._showPosition && thisWindow._showSize) {
-			thisWindow._window.setBounds(thisWindow._showPosition.left, thisWindow._showPosition.top,
+			thisWindow.setBounds(thisWindow._showPosition.left, thisWindow._showPosition.top,
 										 thisWindow._showSize.left, thisWindow._showSize.top, _show, function () {
 				throw "Failed to set bounds for window! Error:" + JSON.stringify(arguments);
 			});
 		} else if (thisWindow._showPosition) {
 			if (thisWindow._autoShow) {
-				thisWindow._window.showAt(thisWindow._showPosition.left, thisWindow._showPosition.top, true, done, function () {
+				thisWindow.showAt(thisWindow._showPosition.left, thisWindow._showPosition.top, true, done, function () {
 					throw "Failed to showAt for window! Error:" + JSON.stringify(arguments);
 				});
 			} else {
-				thisWindow._window.moveTo(thisWindow._showPosition.left, thisWindow._showPosition.top, done, function () {
+				thisWindow.moveTo(thisWindow._showPosition.left, thisWindow._showPosition.top, done, function () {
 					throw "Failed to moveTo for window! Error:" + JSON.stringify(arguments);
 				});
 			}
 		} else if (thisWindow._showSize) {
-			thisWindow._window.resizeTo(thisWindow._showSize.left, thisWindow._showSize.top, "top-left", _show, function () {
+			thisWindow.resizeTo(thisWindow._showSize.left, thisWindow._showSize.top, "top-left", _show, function () {
 				throw "Failed to resizeTo for window! Error:" + JSON.stringify(arguments);
 			});
 		} else {
@@ -504,10 +516,10 @@ define([
 
     function BaseWindow(config, _) {
 		if (!(this instanceof BaseWindow)) return new BaseWindow(config);
-		
+
         if (config == null) config = {}; // If no arguments are passed, assume we are creating a default blank window
         var isArgConfig = (config.app_uuid == null);
-		
+
 		// Handle OpenFin properties:
 		if (isArgConfig) {
 			config.showTaskbarIcon = (config.showTaskbarIcon != null ? config.showTaskbarIcon : true);
@@ -551,6 +563,7 @@ define([
         this._eventListeners = {};
         this._isReady = false;
         this._isClosed = false;
+		this._isResizing = false;
         this._isVisible = (isArgConfig ? config.autoShow : false);
 		this._isMinimized = (isArgConfig && config.state != null ? (config.state === "minimized") : false);
 		this._isMaximized = (isArgConfig && config.state != null ? (config.state === "maximized") : false);
@@ -694,24 +707,32 @@ define([
         return new Vector(this.getWidth(), this.getHeight());
     };
 
-    BaseWindow.prototype.getCollisionMeshWindows = function () {
+    BaseWindow.prototype.getCollisionMeshWindows = function (opts) {
         if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // TODO: Include children in mesh, if child extends parent.
+        opts = opts || {};
         var windows = [this];
-        for (var index = 0; index < this._children.length; index += 1) {
-            if (this._children[index]._addToParentMesh) windows = windows.concat(this._children[index].getCollisionMeshWindows());//windows.push(this._children[index]);
+        if (!opts.ignoreChildren) {
+            for (var index = 0; index < this._children.length; index += 1) {
+                if (this._children[index]._addToParentMesh) windows = windows.concat(this._children[index].getCollisionMeshWindows(opts));//windows.push(this._children[index]);
+            }
         }
         return windows;
     };
-    
-    BaseWindow.prototype.getCollisionMesh = function () {
+
+    BaseWindow.prototype.getCollisionMesh = function (opts) {
         //if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // TODO: Include children in mesh, if child extends parent.
-        var boundingBoxes = [this.getBoundingBox()];
-        for (var index = 0; index < this._children.length; index += 1) {
-            if (this._children[index]._addToParentMesh) boundingBoxes.push(this._children[index].getBoundingBox());
+        var boxes = [this.getBounds()];
+        opts = opts || {};
+        if (!opts.ignoreChildren) {
+            for (var index = 0; index < this._children.length; index += 1) {
+                if (this._children[index]._addToParentMesh) {
+                    boxes = boxes.concat(this._children[index].getCollisionMesh(opts).boxes)
+                }
+            }
         }
-        return new CollisionMesh(boundingBoxes);
+        return new CollisionMesh(boxes);
     };
 
     BaseWindow.prototype.getBounds = function (ignoreNotReady) {
@@ -729,10 +750,24 @@ define([
                                contentWindow.screenLeft + contentWindow.outerWidth, contentWindow.screenTop + contentWindow.outerHeight);*/
     };
 
+    BaseWindow.prototype._syncBounds = function (callback, errorCallback) {
+        var thisWindow = this;
+        if (this.isRestored()) {
+            this._bounds = new BoundingBox(window.screenLeft, window.screenTop,
+                window.screenLeft + window.outerWidth, window.screenTop + window.outerHeight);
+            this._window.getBounds(function (event) {
+                thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
+                if (callback) callback();
+            }, errorCallback);
+        } else if (this.isMaximized()) {
+            this._bounds = this.getMonitor().availableRect.clone();
+        }
+    };
+
     BaseWindow.prototype.getMonitor = function () {
 		var collisionMesh = this.getCollisionMesh(),
 			monitors = monitorManager.getMonitors();
-			
+
 		for (var index = 0; index < monitors.length; index += 1) {
 			if (collisionMesh.isColliding(monitors[index])) return monitors[index];
 		}
@@ -758,16 +793,16 @@ define([
         this._eventListeners[eventName].push(eventListener);
     };
 	BaseWindow.prototype.on = BaseWindow.prototype.addEventListener;
-	
+
 	BaseWindow.prototype.once = function (eventName, eventListener) {
         if (this.isClosed()) throw "once can't be called on a closed window"; // If window is closed, ignore any new callbacks
 		var thisWindow = this;
-		
+
 		function onceListener() {
 			thisWindow.off(eventName, onceListener);
 			eventListener.apply(this, arguments);
 		}
-		
+
 		this.on(eventName, onceListener);
 	};
 
@@ -809,21 +844,36 @@ define([
     BaseWindow.prototype.isReady = function () {
         return this._isReady;
     };
-    
+
+    BaseWindow.prototype.isResizing = function () {
+        return this._isResizing;
+    };
+
     BaseWindow.prototype.isVisible = function () {
         return this._isVisible;
     };
     BaseWindow.prototype.isHidden = function () {
         return !this._isVisible;
     };
-	
+
     BaseWindow.prototype.isFocused = function () {
-        return this.isReady() && this.getDocument().hasFocus();
+        return this.isReady() && (this.getDocument().hasFocus() || windowManager.getFocusedWindow() === this); // TODO: Unsure if the || creates an issue, might want to eliminate one...
+        // We added windowManager check because otherwise sub context menus don't have focus for some reason.
+    };
+    BaseWindow.prototype.isNextFocused = function () {
+        return this.isReady() && windowManager.getNextFocusedWindow() === this;
     };
     BaseWindow.prototype.isChildFocused = function () {
 		var children = this.getChildren();
 		for (var index = 0; index < children.length; index += 1) {
 			if (children[index].isFocused() || children[index].isChildFocused()) return true;
+		}
+		return false;
+    };
+    BaseWindow.prototype.isChildNextFocused = function () {
+		var children = this.getChildren();
+		for (var index = 0; index < children.length; index += 1) {
+			if (children[index].isNextFocused() || children[index].isChildNextFocused()) return true;
 		}
 		return false;
     };
@@ -876,7 +926,7 @@ define([
             callback.call(this);
         }
     };
-	
+
 	BaseWindow.prototype.getGUID = function () {
         if (!this.isReady()) throw "getGUID/getUUID can't be called on an unready window";
         if (this.isClosed()) throw "getGUID/getUUID can't be called on a closed window";
@@ -928,17 +978,17 @@ define([
 		this.setZoom(this.getZoom() / 1.1);
     };
 
-    BaseWindow.prototype.fitToElement = function (element) {
+    BaseWindow.prototype.fitToElement = function (element, callback, errorCallback) {
         if (this.isMaximized()) return; // Can't fit to element if maximized
         if (element == null) element = this._fitToElement;
         if (element == null) return;
 
         var $element = $(element, this.getDocument());
-		
+
 		var width = Math.max(Math.min($element.outerWidth(true), this._config.maxWidth || 65535), this._config.minWidth || 0);
 		var height = Math.max(Math.min($element.outerHeight(true), this._config.maxHeight || 65535), this._config.minHeight || 0);
-        this._window.resizeTo(width, height, "top-left");
-        this._bounds.resizeTo(width, height);
+        this.resizeTo(width, height, "top-left", callback, errorCallback);
+		//this._bounds.resizeTo(width, height);
     };
 
     BaseWindow.prototype.addDraggableElements = function (elements) {
@@ -963,6 +1013,7 @@ define([
         if (this.getCollisionMesh().moveTo(newPosition).someColliding(monitorManager.getMonitors())) {
             // New position is still visible on monitors, so move:
             this._window.moveTo(newPosition.left, newPosition.top, callback, errorCallback);
+            //this._bounds.moveTo(newPosition.left, newPosition.top);
 
             // Move children:
             var deltaPos = (new Position(left, top)).subtract(this.getPosition());
@@ -985,7 +1036,7 @@ define([
 
     BaseWindow.prototype.minimize = function () {
         if (!this.isReady()) throw "minimize can't be called on an unready window";
-		
+
 		if (this._config.showTaskbarIcon) {
 			this._window.minimize.apply(this._window, arguments);
 		} else if (this._config.hideOnClose) {
@@ -996,35 +1047,171 @@ define([
     };
 
     BaseWindow.prototype.maximize = function () {
+        if (!this.isReady()) throw "maximize can't be called on an unready window";
         this._window.maximize.apply(this._window, arguments);
     };
 
     BaseWindow.prototype.show = function () {
+        if (!this.isReady()) throw "show can't be called on an unready window";
         this._window.show.apply(this._window, arguments);
     };
 
-    BaseWindow.prototype.showAt = function () {
+    BaseWindow.prototype.showAt = function (left, top) {
+        if (!this.isReady()) throw "showAt can't be called on an unready window";
         this._window.showAt.apply(this._window, arguments);
+        //this._bounds.moveTo(left, top);
     };
 
     BaseWindow.prototype.restore = function () {
+        if (!this.isReady()) throw "restore can't be called on an unready window";
         this._window.restore.apply(this._window, arguments);
     };
 
-    BaseWindow.prototype.resizeTo = function () {
+    function arrayRemove(arr, value) {
+        var nindex = 0;
+        for (var index = 0; index < arr.length; index += 1) {
+            if (arr[index] !== value) {
+                arr[nindex] = arr[index];
+                nindex += 1;
+            }
+        }
+        arr.length = nindex;
+    };
+    function arrayFilter(arr, callback) {
+        var nindex = 0;
+        for (var index = 0; index < arr.length; index += 1) {
+            if (callback(arr[index], index, arr)) {
+                arr[nindex] = arr[index];
+                nindex += 1;
+            }
+        }
+        arr.length = nindex;
+    };
+
+    BaseWindow.prototype._getEdgeBuckets = function (oldBounds) {
+        // These 4 buckets are used to determine what dock windows belong where:
+        var buckets = { left: [], top: [], right: [], bottom: [] };
+
+        var windows = this.getCollisionMeshWindows({ ignoreChildren: true }); // Ignore child windows as they are handled by parents on move.
+        arrayRemove(windows, this);
+        var lastWindows = windows.length;
+
+        function genWindowObj(window) {
+            return {
+                window: window,
+                pos: window.getPosition(),
+                children: window.getChildren().filter(function (child) {
+                    return child._addToParentMesh;
+                }).map(genWindowObj)
+            };
+        }
+
+        // First loop through windows to determine what windows touch this window, and add to bucket.
+        arrayFilter(windows, function (window) {
+            var edgeTouching = window.getBounds().getOtherEdgeTouching(oldBounds);
+            if (edgeTouching != null) {
+                buckets[edgeTouching].push(genWindowObj(window));
+                return false;
+            }
+            return true;
+        });
+
+        // Loop through remaining dockedGroup to determine where each window should go based on collisionmesh check to each bucket.
+        while (windows.length > 0 && windows.length < lastWindows) {
+            lastWindows = windows.length;
+
+            // Precompute to make edge detection better:
+            var collisionMeshes = {
+                left: new CollisionMesh(buckets.left.map(function (state) { return state.window; }), { ignoreDockedGroup: true }),
+                top: new CollisionMesh(buckets.top.map(function (state) { return state.window; }), { ignoreDockedGroup: true }),
+                right: new CollisionMesh(buckets.right.map(function (state) { return state.window; }), { ignoreDockedGroup: true }),
+                bottom: new CollisionMesh(buckets.bottom.map(function (state) { return state.window; }), { ignoreDockedGroup: true }),
+            };
+            var newBuckets = { left: [], top: [], right: [], bottom: [] };
+
+            // Filter remaining windows:
+            arrayFilter(windows, function (window) {
+                var windowBounds = window.getBounds();
+                var edges = oldBounds.getEdgeClosestOrder(windowBounds); // Look at the edges in shortest distance order
+                // The order helps with minimizing resize overlaps between windows.
+                for (var index = 0; index < edges.length; index += 1) {
+                    var edge = edges[index];
+                    if (windowBounds.getOtherEdgeTouching(collisionMeshes[edge].boxes) != null) {
+                        newBuckets[edge].push(genWindowObj(window));
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            // Push new bucketed windows to buckets:
+            for (var edge in buckets) {
+                buckets[edge].push.apply(buckets[edge], newBuckets[edge]);
+            }
+        }
+
+        return buckets;
+    };
+
+    BaseWindow.prototype._resizedEvent = function (buckets, posDiff) {
+        function moveWindow(state) {
+            var window = state.window;
+            var windowStartPos = state.pos;
+            //var windowBounds = window.getBounds();
+            window.toBase().moveTo(windowStartPos.left + leftDiff, windowStartPos.top + topDiff);
+            window._bounds.moveTo(windowStartPos.left + leftDiff, windowStartPos.top + topDiff);
+            state.children.forEach(moveWindow);
+        }
+        // Perform move of buckets:
+        for (var edge in buckets) {
+            var bucket = buckets[edge];
+            var leftDiff = 0;
+            var topDiff = 0;
+            if (edge === "left" || edge === "right") {
+                leftDiff = posDiff[edge];
+            } else if (edge === "top" || edge === "bottom") {
+                topDiff = posDiff[edge];
+            }
+            for (var index = 0; index < bucket.length; index += 1) {
+                moveWindow(bucket[index]);
+                /*var window = bucket[index].window;
+                var windowStartPos = bucket[index].pos;
+                //var windowBounds = window.getBounds();
+                window.toBase().moveTo(windowStartPos.left + leftDiff, windowStartPos.top + topDiff);
+                window._bounds.moveTo(windowStartPos.left + leftDiff, windowStartPos.top + topDiff);*/
+            }
+        }
+        // TODO: Remove the on resize event that undocks windows.
+    }
+    BaseWindow.prototype.resizeTo = function (width, height, anchor, callback, errorCallback) {
+        if (!this.isReady()) throw "resizeTo can't be called on an unready window";
+		//if (arguments.length < 2) throw "resizeTo function requires at least two arguments!";
+
+        // Perform resize:
+        this._startResizingBounds = this.getBounds();
+        this._resizeEdgeBuckets = this._getEdgeBuckets(this._startResizingBounds);
+        this._isResizing = true;
+        this._bounds.resizeTo(arguments[0], arguments[1]); // Maybe done in success callback?
         this._window.resizeTo.apply(this._window, arguments);
     };
 
-    BaseWindow.prototype.setBounds = function () {
+    BaseWindow.prototype.setBounds = function (left, top, width, height) {
         if (this.isClosed()) return console.warn("Window is closed!");
+        //this._startResizingBounds = this.getBounds();
+        //this._resizeEdgeBuckets = this._getEdgeBuckets(this._startResizingBounds);
+        //this._isResizing = true;
+        //this._bounds.set(left, top, left + width, top + height); // Maybe done in success callback?
         this._window.setBounds.apply(this._window, arguments);
+        //this._bounds.resizeTo(width, height).moveTo(left, top);
     };
 
     BaseWindow.prototype.hide = function () {
+        if (!this.isReady()) throw "hide can't be called on an unready window";
         this._window.hide.apply(this._window, arguments);
     };
 
     BaseWindow.prototype.bringToFront = function (callback, errorCallback) {
+        if (!this.isReady()) throw "bringToFront can't be called on an unready window";
         function callbackWrapper() {
             // Bring children to the front:
             for (var index = 0; index < this._children.length; index += 1) {
@@ -1041,8 +1228,21 @@ define([
         //}
     };
 
-    BaseWindow.prototype.focus = function () {
-        this._window.focus.apply(this._window, arguments);
+    BaseWindow.prototype.focus = function (callback, errorCallback) {
+        if (!this.isReady()) throw "focus can't be called on an unready window";
+
+        var window = this;
+        function callbackWrapper() {
+            windowManager.setNextFocusedWindow(undefined);
+            windowManager.setFocusedWindow(window);
+            if (callback != null) callback();
+        }
+        function errorCallbackWrapper() {
+            windowManager.setNextFocusedWindow(undefined);
+        }
+
+        windowManager.setNextFocusedWindow(this);
+        this._window.focus(callbackWrapper, errorCallbackWrapper);
     };
 
     BaseWindow.prototype.animate = function () {
@@ -1052,7 +1252,7 @@ define([
     BaseWindow.prototype.updateOptions = function (options, callback, errorCallback) {
         // Handle config property:
 		var thisWindow = this;
-		
+
 		function onSuccess() {
 			// TODO: Validate config? Maybe pull from getOptions? Is it needed since openfin should error on bad fields?
 			for (var field in options) {
@@ -1060,7 +1260,7 @@ define([
 			}
 			if (callback != null && callback.constructor !== Function) callback.apply(thisWindow._window, arguments);
 		}
-		
+
         this._window.updateOptions(options, onSuccess, errorCallback);
     };
 
