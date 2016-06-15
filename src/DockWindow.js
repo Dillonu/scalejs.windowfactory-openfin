@@ -50,7 +50,7 @@ define([
         this.addEventListener("maximized", this.undock);
         this.addEventListener("restored", function () {
 			for (var index = 0; index < this._dockedGroup.length; index += 1) {
-				if (this._dockedGroup[index] !== this) this._dockedGroup[index].toBase().restore();
+				if (this._dockedGroup[index] !== this) this._dockedGroup[index]._restore();
 			}
 		});
         this.addEventListener("closed", this.undock);
@@ -87,6 +87,7 @@ define([
 		// Verify it is touching one window:
 		if (!other.getCollisionMesh().isTouching(this.getCollisionMesh())) return; // Don't dock if none are touching
 
+        this._window.mergeGroups(other._window);
         for (var index = 0; index < otherGroup.length; index += 1) {
             if (this._dockedGroup.indexOf(otherGroup[index]) < 0) {
                 this._dockedGroup.push(otherGroup[index]);
@@ -109,6 +110,7 @@ define([
 
         // Undock all:
         for (var i = 0; i < oldGroup.length; i += 1) {
+            oldGroup[i]._window.leaveGroup();
             oldGroup[i]._dockedGroup = [oldGroup[i]];
             //oldGroup[i].isDocked(false);
 			oldGroup[i]._isDocked = false;
@@ -133,7 +135,9 @@ define([
         if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // Does not use super, to avoid changing the proto of this in windows array.
         opts = opts || {};
-        var windows = [this];
+        var windows = [];
+        if (!opts.ignoreThis) windows.push(this);
+        delete opts.ignoreThis;
         if (!opts.ignoreChildren) {
             for (var index = 0; index < this._children.length; index += 1) {
                 if (this._children[index]._addToParentMesh) windows = windows.concat(this._children[index].getCollisionMeshWindows(opts));//windows.push(this._children[index]);
@@ -154,8 +158,10 @@ define([
     DockWindow.prototype.getCollisionMesh = function (opts) {
         if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // Call super on each docked window:
-        var boxes = [this.getBounds()];
         opts = opts || {};
+        var boxes = [];
+        if (!opts.ignoreThis) boxes.push(this.getBounds());
+        delete opts.ignoreThis;
         if (!opts.ignoreChildren) {
             for (var index = 0; index < this._children.length; index += 1) {
                 if (this._children[index]._addToParentMesh) {
@@ -164,8 +170,9 @@ define([
             }
         }
         if (!opts.ignoreDockedGroup) {
+            opts.ignoreDockedGroup = true;
             for (var index = 0; index < this._dockedGroup.length; index += 1) {
-                if (this._dockedGroup[index] !== this) boxes = boxes.concat(this._dockedGroup[index].toBase().getCollisionMesh(opts).boxes);//BaseWindow.prototype.getCollisionMesh.call(this).boxes);
+                if (this._dockedGroup[index] !== this) boxes = boxes.concat(this._dockedGroup[index].getCollisionMesh(opts).boxes);//BaseWindow.prototype.getCollisionMesh.call(this).boxes);
             }
         }
         return new CollisionMesh(boxes);
@@ -175,6 +182,8 @@ define([
         if (!this.isReady()) throw "getBoundingBox can't be called on an unready window";
         return this.getCollisionMesh().getBoundingBox();
     };
+
+    DockWindow.prototype._moveTo = BaseWindow.prototype.moveTo;
 
     DockWindow.prototype.moveTo = function (left, top, callback, errorCallback) {
         var newPosition = new Vector(left, top);
@@ -188,10 +197,10 @@ define([
             }
             for (var index = 0; index < this._dockedGroup.length; index += 1) {
                 // Docked group contains this window as well.
-                if (this._dockedGroup[index] != this) this._dockedGroup[index].toBase().moveTo(deltaPos.clone().add(this._dockedGroup[index].getPosition()));
+                if (this._dockedGroup[index] != this) this._dockedGroup[index]._moveTo(deltaPos.clone().add(this._dockedGroup[index].getPosition()));
             }
             var newPos = deltaPos.clone().add(this.getPosition());
-            this.toBase().moveTo(newPos.left, newPos.top, callback, errorCallback);
+            this._moveTo(newPos.left, newPos.top, callback, errorCallback);
         }
     };
 
@@ -201,6 +210,8 @@ define([
             window.minimize.apply(window, arguments);
         }
     };
+
+    DockWindow.prototype._restore = BaseWindow.prototype.restore;
 
 	DockWindow.prototype.restore = function () {
         for (var index = 0; index < this._dockedGroup.length; index += 1) {

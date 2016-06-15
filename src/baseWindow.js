@@ -133,33 +133,70 @@ define([
         thisWindow._syncBounds();
         thisWindow._isResizing = false;
 
+        thisWindow._window.disableFrame();
+        /*thisWindow._window.moveTo = function (left, top, callback, errorCallback) {
+            this.setBounds(left, top, thisWindow._bounds.getWidth(), thisWindow._bounds.getHeight(), callback, errorCallback);
+        };*/
         //// Store window position and size on window move:
+        var isIn_updatePositionAndSize = false;
         function updatePositionAndSize(event) {
-            var oldBounds = thisWindow._bounds.clone();
-            thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
+            if (isIn_updatePositionAndSize) return;
+
             if (event.changeType !== 0) {
-                //thisWindow.undock();
-                if (event.type.indexOf("changing") >= 0) {
-                    if (!thisWindow.isResizing()) {
-                        thisWindow._isResizing = true;
-                        // TODO: Cache all windows in resize group (what edge they are part of & starting position):
-                        thisWindow._startResizingBounds = oldBounds.clone();
-                        thisWindow._resizeEdgeBuckets = thisWindow._getEdgeBuckets(thisWindow._startResizingBounds);
-                    }
-                } else {
-                        thisWindow._isResizing = false;
-                }
-                // TODO: Pass in window cached window edges & diff from starting resize event!
-                var diffBounds = thisWindow._bounds.difference(thisWindow._startResizingBounds);
-                thisWindow._resizedEvent(thisWindow._resizeEdgeBuckets, diffBounds);
+                //var diffBounds = thisWindow._bounds.difference(oldBounds);//thisWindow._startResizingBounds);
+                thisWindow._window.resizeTo(event.width, event.height);
+                //thisWindow._resizedEvent(thisWindow._resizeEdgeBuckets, diffBounds);
+                thisWindow._bounds.resizeTo(event.width, event.height);
                 thisWindow.triggerEvent("resized", thisWindow.getBounds(true));
             }
-            if (event.changeType !== 1) thisWindow.triggerEvent("moved", thisWindow._bounds.getPosition());
+
+            var oldBounds = thisWindow._bounds.clone();
+            thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
+            // Sync positions:
+            var moveDiff = thisWindow._bounds.getPosition().subtract(oldBounds.getPosition());
+            var meshWindows = thisWindow.getCollisionMeshWindows({ ignoreThis: true });
+            for (var index = 0; index < meshWindows.length; index += 1) {
+                meshWindows[index]._bounds.moveBy(moveDiff);
+            }
+
+            if (event.changeType !== 1) {
+                var newPos = onDrag(event.left, event.top, event.type.indexOf("changed") >= 0);
+                if (event.left !== newPos.left || event.top !== newPos.top) {
+                    var moveDiff = new Position(newPos).subtract(thisWindow._bounds.getPosition());
+                    var meshWindows = thisWindow.getCollisionMeshWindows({ ignoreThis: true });
+                    for (var index = 0; index < meshWindows.length; index += 1) {
+                        meshWindows[index]._bounds.moveBy(moveDiff);
+                    }
+                    thisWindow._bounds.moveTo(newPos.left, newPos.top);
+                    //removeBoundsListeners();
+                    //thisWindow._window.moveTo(newPos.left, newPos.top, addBoundsListeners);
+                }
+                isIn_updatePositionAndSize = true;
+                thisWindow._window.moveTo(thisWindow._bounds.left, thisWindow._bounds.top, function () {
+                    isIn_updatePositionAndSize = false
+                });
+                thisWindow.triggerEvent("moved", thisWindow._bounds.getPosition());
+            }
         }
-        this._window.addEventListener("bounds-changed", updatePositionAndSize);
-        this._window.addEventListener("bounds-changing", updatePositionAndSize);
-        this._window.addEventListener("disabled-frame-bounds-changed", updatePositionAndSize);
-        this._window.addEventListener("disabled-frame-bounds-changing", updatePositionAndSize);
+
+        function updateBounds(event) {
+            var oldBounds = thisWindow._bounds.clone();
+            thisWindow._bounds = new BoundingBox(event.left, event.top, event.left + event.width, event.top + event.height);
+        }
+
+        function removeBoundsListeners() {
+            //thisWindow._window.removeEventListener("bounds-changed", updateBounds);
+            //thisWindow._window.removeEventListener("bounds-changing", updateBounds);
+            thisWindow._window.removeEventListener("disabled-frame-bounds-changed", updatePositionAndSize);
+            thisWindow._window.removeEventListener("disabled-frame-bounds-changing", updatePositionAndSize);
+        }
+        function addBoundsListeners() {
+            //thisWindow._window.addEventListener("bounds-changed", updateBounds);
+            //thisWindow._window.addEventListener("bounds-changing", updateBounds);
+            thisWindow._window.addEventListener("disabled-frame-bounds-changed", updatePositionAndSize);
+            thisWindow._window.addEventListener("disabled-frame-bounds-changing", updatePositionAndSize);
+        }
+        addBoundsListeners();
 
         this.addEventListener("childremove", function (window) {
             if (window._addToParentMesh) {
@@ -215,8 +252,8 @@ define([
                     left: left,
                     top: top
                 },
-                thisCurrentBounds = new BoundingBox(thisWindow._bounds),
-                thisBounds = new BoundingBox(thisWindow._bounds),
+                thisCurrentBounds = thisWindow.getBounds(),
+                thisBounds = thisWindow.getBounds(),
                 meshWindows = thisWindow.getCollisionMeshWindows(),
                 thisWindowMesh = thisWindow.getCollisionMesh(),
                 otherWindows = (thisWindow._parent != null ? thisWindow._parent._children : windowManager.getApplicationWindows()),
@@ -242,7 +279,7 @@ define([
                     // Loop through snapWindow's mesh boxes:
                     for (var j = 0; j < snapWindowMeshWindows.length; j += 1) {
                         var snapWindow = snapWindowMeshWindows[j],
-                            snapBox = new BoundingBox(snapWindow._bounds);
+                            snapBox = snapWindow.getBounds();
                         // Handle snap:
                         if (meshBox.top <= snapBox.bottom && meshBox.bottom >= snapBox.top) {
                             // Handle x-snap:
@@ -317,7 +354,7 @@ define([
             // Move window:
             if (newPos.left !== thisCurrentBounds.left || newPos.top !== thisCurrentBounds.top) {
                 movedSinceDragStart = true;
-                moveGroup(newPos);
+                //moveGroup(newPos);
                 //moveDrag(newPos.left, newPos.top);
                 //thisWindow.moveTo(newPos.left, newPos.top);
             }
@@ -330,9 +367,12 @@ define([
                         thisWindow.triggerEvent("_endSnap", snapWindow);
                     }
                 }
+                movedSinceDragStart = false;
                 //if (newPos.xWindow != null) thisWindow.triggerEvent("_endSnap", newPos.xWindow);
                 //if (newPos.yWindow != null) thisWindow.triggerEvent("_endSnap", newPos.yWindow);
             }
+
+            return newPos;
         }
 
         window.addEventListener("mousemove", function (event) {
@@ -711,7 +751,9 @@ define([
         if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // TODO: Include children in mesh, if child extends parent.
         opts = opts || {};
-        var windows = [this];
+        var windows = [];
+        if (!opts.ignoreThis) windows.push(this);
+        delete opts.ignoreThis;
         if (!opts.ignoreChildren) {
             for (var index = 0; index < this._children.length; index += 1) {
                 if (this._children[index]._addToParentMesh) windows = windows.concat(this._children[index].getCollisionMeshWindows(opts));//windows.push(this._children[index]);
@@ -723,8 +765,10 @@ define([
     BaseWindow.prototype.getCollisionMesh = function (opts) {
         //if (!this.isReady()) throw "getCollisionMesh can't be called on an unready window";
         // TODO: Include children in mesh, if child extends parent.
-        var boxes = [this.getBounds()];
         opts = opts || {};
+        var boxes = [];
+        if (!opts.ignoreThis) boxes.push(this.getBounds());
+        delete opts.ignoreThis;
         if (!opts.ignoreChildren) {
             for (var index = 0; index < this._children.length; index += 1) {
                 if (this._children[index]._addToParentMesh) {
@@ -752,6 +796,7 @@ define([
 
     BaseWindow.prototype._syncBounds = function (callback, errorCallback) {
         var thisWindow = this;
+        var window = this.getContentWindow(true);
         if (this.isRestored()) {
             this._bounds = new BoundingBox(window.screenLeft, window.screenTop,
                 window.screenLeft + window.outerWidth, window.screenTop + window.outerHeight);
@@ -998,7 +1043,9 @@ define([
             if (elements.constructor === String) elements = this.getDocument().querySelectorAll(elements);
 
             for (var index = 0; index < elements.length; index += 1) {
-                elements[index].addEventListener("mousedown", this._dragStartEvent);
+                //elements[index].addEventListener("mousedown", this._dragStartEvent);
+                //this._window.defineDraggableArea(elements[index]);
+                elements[index].style["-webkit-app-region"] = "drag";
             }
         });
     };
